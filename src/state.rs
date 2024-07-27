@@ -49,10 +49,12 @@ impl Display for Status {
 }
 
 pub fn write(mut w: impl Write, buffer: &mut Vec<u8>, tasks: &[Task]) -> Result<(), std::io::Error> {
+    const IFS: char = ',';
+
     buffer.clear();
 
     for task in tasks.iter() {
-        write!(buffer, "{}:{}:{}\n", task.status, task.time, task.path.to_string_lossy())?;
+        write!(buffer, "{}{IFS}{}{IFS}{}\n", task.status, task.time, task.path.to_string_lossy())?;
     }
 
     w.write(&buffer)?;
