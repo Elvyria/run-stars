@@ -7,7 +7,6 @@ use std::{
     fs::File, io::Write, num::NonZeroUsize, os::unix::ffi::OsStrExt, path::PathBuf, process::Stdio
 };
 
-use async_channel::bounded;
 use async_process::Command;
 use futures_concurrency::{
     future::FutureExt,
@@ -49,30 +48,26 @@ fn main() -> Result<(), Error> {
 
     let mut tasks = vec![];
 
-    let processes = files.map(|f| {
+    let (s, r) = async_channel::unbounded();
+    let processes: Vec<_> = files.map(|f| {
         let p = f.path();
 
         tasks.push(Task::new(p.clone()));
 
-        (tasks.len() - 1, p)
-    });
+        (tasks.len() - 1, p, s.clone())
+    }).collect();
+
+    drop(s);
 
     let sum = seahash::hash(args.dir.as_os_str().as_bytes());
 
     let runtime_path = format!("{}/{sum}", create_runtime_home()?);
-    let mut runtime: &mut dyn std::io::Write = match File::create(runtime_path) {
+    let mut runtime: &mut dyn std::io::Write = match File::create(&runtime_path) {
         Ok(fd) => &mut StateFile(fd),
         Err(_) => &mut std::io::sink(),
     };
 
-    let processes = processes.collect::<Vec<_>>();
-    let mut left = 2 * processes.len();
-
-    let (s, r) = bounded(processes.len().max(1));
-
-    let wait_for_processes = processes.into_co_stream().limit(args.limit).for_each(|(i, p)| {
-        let s = s.clone();
-
+    let wait_for_processes = processes.into_co_stream().limit(args.limit).for_each(|(i, p, s)| {
         async move {
             let c = Command::new("/bin/sh")
                 .arg(&p)
@@ -112,17 +107,18 @@ fn main() -> Result<(), Error> {
     let write_state = async {
         let mut buffer = vec![];
 
-        while left != 0 {
-            let mut msg = r.recv().await.ok();
+        while let Ok(mut msg) = r.recv().await {
+            loop {
+                let (i, state) = msg;
 
-            while let Some((i, state)) = msg {
                 let t = &mut tasks[i];
                 t.status = state.status;
                 t.time = state.time;
 
-                left -= 1;
-
-                msg = r.try_recv().ok();
+                msg = match r.try_recv() {
+                    Ok(msg) => msg,
+                    Err(_) => break,
+                }
             }
 
             if let Err(e) = state::write(&mut runtime, &mut buffer, &tasks) {
@@ -134,6 +130,8 @@ fn main() -> Result<(), Error> {
     };
 
     let (_, buffer) = future::block_on(wait_for_processes.join(write_state));
+
+    let _ = std::fs::remove_file(runtime_path);
 
     let state_path = format!("{}/{sum}", create_state_home()?);
     let mut state = File::create(state_path)?;
