@@ -1,0 +1,15 @@
+[package]
+name = "taskrunner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+argh = "0.1.12"
+async-channel = "2.3.1"
+async-process = "2.2.3"
+futures-concurrency = "7.6.1"
+futures-lite = "2.3.0"
+jiff = { version = "0.1.0" }
+rustix = "0.38.34"
+seahash = "4.1.0"
+thiserror = "1.0.63"
