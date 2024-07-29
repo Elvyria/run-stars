@@ -4,7 +4,7 @@ mod state;
 mod xdg;
 
 use std::{
-    fs::File, io::Write, num::NonZeroUsize, os::unix::ffi::OsStrExt, path::PathBuf, process::Stdio
+    cell::UnsafeCell, ffi::OsString, fs::File, io::Write, num::NonZeroUsize, os::unix::ffi::OsStringExt, path::{self, Path, PathBuf}, process::Stdio
 };
 
 use async_process::Command;
@@ -14,8 +14,9 @@ use futures_concurrency::{
 };
 use futures_lite::future;
 use jiff::Timestamp;
+use memchr::memchr_iter;
 use rustix::path::Arg;
-use state::{StateFile, Status, StatusMsg, Task};
+use state::{StateFile, Status, StateChange, Task};
 
 use error::Error;
 
@@ -52,28 +53,31 @@ fn main() -> Result<(), Error> {
     let processes: Vec<_> = files.map(|f| {
         let p = f.path();
 
-        tasks.push(Task::new(p.clone()));
+        let mut c = Command::new("/bin/sh"); c
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
+                            .arg(&p);
 
-        (tasks.len() - 1, p, s.clone())
+        tasks.push(Task::new(p));
+
+        (tasks.len() - 1, c, s.clone())
     }).collect();
 
     drop(s);
 
-    let sum = seahash::hash(args.dir.as_os_str().as_bytes());
+    let target_dir = escape_path(path::absolute(args.dir).unwrap(), '%');
 
-    let runtime_path = format!("{}/{sum}", create_runtime_home()?);
+    let mut runtime_path = create_runtime_home()?;
+    runtime_path.push(&target_dir);
+
     let mut runtime: &mut dyn std::io::Write = match File::create(&runtime_path) {
         Ok(fd) => &mut StateFile(fd),
         Err(_) => &mut std::io::sink(),
     };
 
-    let wait_for_processes = processes.into_co_stream().limit(args.limit).for_each(|(i, p, s)| {
+    let wait_for_processes = processes.into_co_stream().limit(args.limit).for_each(|(i, mut c, s)| {
         async move {
-            let c = Command::new("/bin/sh")
-                .arg(&p)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn();
+            let c = c.spawn();
 
             let status = match c {
                 Ok(_) => Status::Running,
@@ -84,7 +88,7 @@ fn main() -> Result<(), Error> {
                 }
             };
 
-            let state = StatusMsg { status, time: Timestamp::now() };
+            let state = StateChange { status, time: Timestamp::now() };
             s.send_blocking((i, state)).unwrap();
 
             let Ok(mut child) = c else { return };
@@ -99,7 +103,7 @@ fn main() -> Result<(), Error> {
                 }
             };
 
-            let state = StatusMsg { status, time: Timestamp::now() };
+            let state = StateChange { status, time: Timestamp::now() };
             s.send_blocking((i, state)).unwrap();
         }
     });
@@ -131,20 +135,63 @@ fn main() -> Result<(), Error> {
 
     let (_, buffer) = future::block_on(wait_for_processes.join(write_state));
 
-    let _ = std::fs::remove_file(runtime_path);
+    let _ = std::fs::remove_file(&runtime_path);
 
-    let state_path = format!("{}/{sum}", create_state_home()?);
-    let mut state = File::create(state_path)?;
-    state.write_all(&buffer)?;
+    write_persistant_state(&buffer, target_dir)?;
 
     Ok(())
 }
 
-#[inline]
-fn create_home(s: &str) -> Result<String, Error> {
-    match std::fs::metadata(s) {
+fn write_persistant_state(b: &[u8], target: impl AsRef<Path>) -> Result<(), Error> {
+    let mut state_path = create_state_home()?;
+    state_path.push(target);
+
+    let mut state = File::create(state_path)?;
+    state.write_all(&b).map_err(Into::into)
+}
+
+fn escape_path(p: PathBuf, c: char) -> PathBuf {
+    let original = p.into_os_string().into_vec();
+    let c = c as u8;
+
+    let b = {
+        let mut pos = memchr_iter(c, original.as_slice());
+        match pos.next() {
+            Some(i) => {
+                let mut b = original.clone();
+                b.insert(i, c);
+
+                let mut offset = 1;
+
+                pos.for_each(|i| { b.insert(i + offset, c); offset += 1 });
+
+                b
+            }
+            None => original,
+        }
+    };
+
+    unsafe {
+        let mut b = UnsafeCell::new(b);
+
+        let chars = memchr_iter(b'/', &*b.get());
+
+        {
+            let b = &mut *b.get_mut();
+            chars.for_each(|i| b[i] = c);
+        }
+
+        PathBuf::from(OsString::from_vec(b.into_inner()))
+    }
+}
+
+fn create_home(p: impl AsRef<Path>) -> Result<PathBuf, Error> {
+    let p = p.as_ref();
+
+    match std::fs::metadata(p) {
         Ok(m) if m.is_dir() => {
-            let state = format!("{}/{}", s, env!("CARGO_CRATE_NAME"));
+            let mut state = p.to_owned();
+            state.push(env!("CARGO_CRATE_NAME"));
 
             let Err(e) = std::fs::create_dir(&state) else {
                 return Ok(state);
@@ -155,15 +202,15 @@ fn create_home(s: &str) -> Result<String, Error> {
                 _ => Err(e.into()),
             }
         }
-        Ok(_) => Err(error::System::NotDirectory(s.to_string()).into()),
+        Ok(_) => Err(error::System::NotDirectory(p.to_string_lossy().to_string()).into()),
         Err(e) => Err(e.into()),
     }
 }
 
-fn create_state_home() -> Result<String, Error> {
+fn create_state_home() -> Result<PathBuf, Error> {
     create_home(&xdg::state())
 }
 
-fn create_runtime_home() -> Result<String, Error> {
+fn create_runtime_home() -> Result<PathBuf, Error> {
     create_home(&xdg::runtime())
 }

@@ -10,7 +10,7 @@ pub struct Task {
     pub path:   PathBuf,
 }
 
-pub struct StatusMsg {
+pub struct StateChange {
     pub status: Status,
     pub time:   Timestamp,
 }
