@@ -230,6 +230,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fc0510504f03c51ada170672ac806f1f105a88aa97a5281117e1ddc3368e51a"
 
 [[package]]
+name = "fs4"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eff1b43de0569d91f75d415e790ddef2c4d6b4e7b81933a180cf15c9d58880a1"
+dependencies = [
+ "rustix",
+ "windows-sys",
+]
+
+[[package]]
 name = "funty"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -559,6 +569,7 @@ dependencies = [
  "argh",
  "async-channel",
  "async-process",
+ "fs4",
  "futures-concurrency",
  "futures-lite 2.3.0",
  "jiff",

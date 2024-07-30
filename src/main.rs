@@ -8,6 +8,7 @@ use std::{
 };
 
 use async_process::Command;
+use fs4::fs_std::FileExt;
 use futures_concurrency::{
     future::FutureExt,
     prelude::{ConcurrentStream, IntoConcurrentStream},
@@ -18,20 +19,20 @@ use memchr::memchr_iter;
 use rustix::path::Arg;
 use state::{StateFile, Status, StateChange, Task};
 
-use error::Error;
+use error::{Error, FileError};
 
 #[derive(argh::FromArgs)]
-/// Args
+/// Batch executor with a convenient state reporting.
 struct Args {
-    /// directory
+    /// directory that contains to be executed files
     #[argh(positional)]
     dir: PathBuf,
 
-    /// list items
+    /// print a relative path to an each file that will be executed
     #[argh(switch)]
     list: bool,
 
-    /// limit 
+    /// limit the amount of simultaneously running tasks
     #[argh(option)]
     limit: Option<NonZeroUsize>,
 }
@@ -39,7 +40,9 @@ struct Args {
 fn main() -> Result<(), Error> {
     let args: Args = argh::from_env();
 
-    let files = ls::files(&args.dir).unwrap();
+    let mut target_dir = path::absolute(&args.dir).map_err(|io| FileError::Absolute { path: args.dir, io })?;
+
+    let files = ls::files(&target_dir).map_err(|io| FileError::AccessLocation { path: target_dir.clone(), io })?;
 
     if args.list {
         files.for_each(|f| println!("{}", f.path().to_string_lossy()));
@@ -53,39 +56,41 @@ fn main() -> Result<(), Error> {
     let processes: Vec<_> = files.map(|f| {
         let p = f.path();
 
-        let mut c = Command::new("/bin/sh"); c
-                            .stdout(Stdio::null())
-                            .stderr(Stdio::null())
-                            .arg(&p);
+        tasks.push(Task::new(p.clone()));
 
-        tasks.push(Task::new(p));
-
-        (tasks.len() - 1, c, s.clone())
+        (tasks.len() - 1, p, s.clone())
     }).collect();
 
     drop(s);
 
-    let target_dir = escape_path(path::absolute(args.dir).unwrap(), '%');
+    target_dir = escape_path(target_dir, '%');
 
     let mut runtime_path = create_runtime_home()?;
     runtime_path.push(&target_dir);
 
     let mut runtime: &mut dyn std::io::Write = match File::create(&runtime_path) {
-        Ok(fd) => &mut StateFile(fd),
+        Ok(fd) => {
+            fd.try_lock_exclusive().map_err(|io| FileError::RuntimeLock { path: runtime_path.clone(), io })?;
+            &mut StateFile(fd)
+        },
         Err(_) => &mut std::io::sink(),
     };
 
-    let wait_for_processes = processes.into_co_stream().limit(args.limit).for_each(|(i, mut c, s)| {
+    let wait_for_processes = processes.into_co_stream().limit(args.limit).for_each(|(i, p, s)| {
         async move {
-            let c = c.spawn();
+            let handle_error = |e: &std::io::Error| {
+                eprintln!("{}: {e}", &p.to_string_lossy());
+            };
+
+            let c = Command::new(&p)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .inspect_err(handle_error);
 
             let status = match c {
                 Ok(_) => Status::Running,
-                Err(ref e) => {
-                    eprintln!("{e}");
-
-                    Status::Failure
-                }
+                Err(_) => Status::Failure,
             };
 
             let state = StateChange { status, time: Timestamp::now() };
@@ -93,14 +98,12 @@ fn main() -> Result<(), Error> {
 
             let Ok(mut child) = c else { return };
 
-            let status = match child.status().await {
-                Ok(code) if code.success() => Status::Success,
-                Ok(_) => Status::Failure,
-                Err(e) => {
-                    eprintln!("{e}");
+            let status = child.status().await
+                .inspect_err(handle_error);
 
-                    Status::Failure
-                }
+            let status = match status {
+                Ok(code) if code.success() => Status::Success,
+                Err(_) | Ok(_) => Status::Failure,
             };
 
             let state = StateChange { status, time: Timestamp::now() };
@@ -146,8 +149,11 @@ fn write_persistant_state(b: &[u8], target: impl AsRef<Path>) -> Result<(), Erro
     let mut state_path = create_state_home()?;
     state_path.push(target);
 
-    let mut state = File::create(state_path)?;
-    state.write_all(&b).map_err(Into::into)
+    let mut state = File::create(&state_path)
+        .map_err(|io| FileError::CreatePersistant { path: state_path.clone(), io })?;
+
+    state.write_all(&b)
+        .map_err(|io| FileError::WritePersistant { path: state_path, io }.into())
 }
 
 fn escape_path(p: PathBuf, c: char) -> PathBuf {
@@ -193,17 +199,17 @@ fn create_home(p: impl AsRef<Path>) -> Result<PathBuf, Error> {
             let mut state = p.to_owned();
             state.push(env!("CARGO_CRATE_NAME"));
 
-            let Err(e) = std::fs::create_dir(&state) else {
+            let Err(io) = std::fs::create_dir(&state) else {
                 return Ok(state);
             };
 
-            match e.kind() {
+            match io.kind() {
                 std::io::ErrorKind::AlreadyExists => Ok(state),
-                _ => Err(e.into()),
+                _ => Err(FileError::CreateLocation { path: state.clone(), io}.into()),
             }
         }
-        Ok(_) => Err(error::System::NotDirectory(p.to_string_lossy().to_string()).into()),
-        Err(e) => Err(e.into()),
+        Ok(_) => Err(FileError::NotDirectory(p.to_owned()).into()),
+        Err(io) => Err(FileError::AccessLocation { path: p.to_owned(), io }.into()),
     }
 }
 
