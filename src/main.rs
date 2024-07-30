@@ -35,25 +35,25 @@ struct Args {
     /// limit the amount of simultaneously running tasks
     #[argh(option)]
     limit: Option<NonZeroUsize>,
+
+    /// reverse order of execution
+    #[argh(switch)]
+    reverse: bool,
 }
 
 fn main() -> Result<(), Error> {
     let args: Args = argh::from_env();
 
-    let mut target_dir = path::absolute(&args.dir).map_err(|io| FileError::Absolute { path: args.dir, io })?;
+    let mut target_dir = path::absolute(&args.dir)
+        .map_err(|io| FileError::Absolute { path: args.dir, io })?;
 
-    let files = ls::files(&target_dir).map_err(|io| FileError::AccessLocation { path: target_dir.clone(), io })?;
-
-    if args.list {
-        files.for_each(|f| println!("{}", f.path().to_string_lossy()));
-
-        return Ok(())
-    }
+    let files = ls::files(&target_dir)
+        .map_err(|io| FileError::AccessLocation { path: target_dir.clone(), io })?;
 
     let mut tasks = vec![];
 
     let (s, r) = async_channel::unbounded();
-    let processes: Vec<_> = files.map(|f| {
+    let mut processes: Vec<_> = files.map(|f| {
         let p = f.path();
 
         tasks.push(Task::new(p.clone()));
@@ -62,6 +62,18 @@ fn main() -> Result<(), Error> {
     }).collect();
 
     drop(s);
+
+    processes.sort_by(|a, b| a.1.cmp(&b.1));
+
+    if args.reverse {
+        processes.reverse();
+    }
+
+    if args.list {
+        processes.iter().for_each(|(_, p, _)| println!("{}", p.to_string_lossy()));
+
+        return Ok(())
+    }
 
     target_dir = escape_path(target_dir, '%');
 
