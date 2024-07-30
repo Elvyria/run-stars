@@ -1,6 +1,8 @@
 [package]
 name = "taskrunner"
 version = "0.1.0"
+authors = ["Elvyria <elvyria@tutanota.com>"]
+repository = "https://gitea.com/Elvyria/taskrunner"
 edition = "2021"
 
 [dependencies]
