@@ -3,7 +3,6 @@ use std::{fmt::Display, fs::File, io::{self, Write}, os::unix::fs::FileExt, path
 use jiff::Timestamp;
 use rustix::path::Arg;
 
-#[derive(Debug)]
 pub struct Task {
     pub status: Status,
     pub time:   Timestamp,
@@ -25,7 +24,6 @@ impl Task {
     }
 }
 
-#[derive(Debug)]
 pub enum Status {
     Success,
     Failure,
