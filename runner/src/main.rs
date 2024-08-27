@@ -1,23 +1,22 @@
 mod error;
 mod ls;
-mod state;
-mod xdg;
 
-use std::{
-    cell::UnsafeCell, ffi::OsString, fs::File, io::Write, num::NonZeroUsize, os::unix::ffi::OsStringExt, path::{self, Path, PathBuf}, process::Stdio
-};
+use std::fs::File;
+use std::io::Write;
+use std::num::NonZeroUsize;
+use std::path::{self, Path, PathBuf};
+use std::process::Stdio;
 
 use async_process::Command;
 use fs4::fs_std::FileExt;
-use futures_concurrency::{
-    future::FutureExt,
-    prelude::{ConcurrentStream, IntoConcurrentStream},
-};
+use futures_concurrency::future::FutureExt;
+use futures_concurrency::prelude::{ConcurrentStream, IntoConcurrentStream};
 use futures_lite::future;
 use jiff::Timestamp;
-use memchr::memchr_iter;
 use rustix::path::Arg;
-use state::{StateFile, Status, StateChange, Task};
+
+use state::{Status, StateChange, Task};
+use state::write::StateFile;
 
 use error::{Error, FileError};
 
@@ -75,17 +74,17 @@ fn main() -> Result<(), Error> {
         return Ok(())
     }
 
-    target_dir = escape_path(target_dir, '%');
+    target_dir = state::path::encode(target_dir);
 
-    let mut runtime_path = create_runtime_home()?;
+    let mut runtime_path = state::path::init_runtime_dir()?;
     runtime_path.push(&target_dir);
 
-    let mut runtime: &mut dyn std::io::Write = match File::create(&runtime_path) {
+    let mut runtime: StateFile = match File::create(&runtime_path) {
         Ok(fd) => {
             fd.try_lock_exclusive().map_err(|io| FileError::RuntimeLock { path: runtime_path.clone(), io })?;
-            &mut StateFile(fd)
+            StateFile::File(fd)
         },
-        Err(_) => &mut std::io::sink(),
+        Err(_) => StateFile::Sink,
     };
 
     let wait_for_processes = processes.into_co_stream().limit(args.limit).for_each(|(i, p, s)| {
@@ -100,12 +99,12 @@ fn main() -> Result<(), Error> {
                 .spawn()
                 .inspect_err(handle_error);
 
-            let status = match c {
-                Ok(_) => Status::Running,
-                Err(_) => Status::Failure,
+            let (status, code) = match c {
+                Ok(_)  => (Status::Running, 0),
+                Err(_) => (Status::Failure, 1),
             };
 
-            let state = StateChange { status, time: Timestamp::now() };
+            let state = StateChange { status, code, time: Timestamp::now() };
             s.send_blocking((i, state)).unwrap();
 
             let Ok(mut child) = c else { return };
@@ -113,12 +112,13 @@ fn main() -> Result<(), Error> {
             let status = child.status().await
                 .inspect_err(handle_error);
 
-            let status = match status {
-                Ok(code) if code.success() => Status::Success,
-                Err(_) | Ok(_) => Status::Failure,
+            let (status, code) = match status {
+                Ok(status) if status.success() => (Status::Success, 0),
+                Ok(status) => (Status::Failure, status.code().unwrap_or(1)),
+                Err(_) => (Status::Failure, 1),
             };
 
-            let state = StateChange { status, time: Timestamp::now() };
+            let state = StateChange { status, code: code as u8, time: Timestamp::now() };
             s.send_blocking((i, state)).unwrap();
         }
     });
@@ -140,7 +140,7 @@ fn main() -> Result<(), Error> {
                 }
             }
 
-            if let Err(e) = state::write(&mut runtime, &mut buffer, &tasks) {
+            if let Err(e) = state::write::write(&mut runtime, &mut buffer, &tasks) {
                 eprintln!("{e}");
             }
         }
@@ -150,85 +150,25 @@ fn main() -> Result<(), Error> {
 
     let (_, buffer) = future::block_on(wait_for_processes.join(write_state));
 
-    let _ = std::fs::remove_file(&runtime_path);
+    drop(runtime);
 
     write_persistant_state(&buffer, target_dir)?;
+
+    let _ = std::fs::remove_file(&runtime_path);
 
     Ok(())
 }
 
 fn write_persistant_state(b: &[u8], target: impl AsRef<Path>) -> Result<(), Error> {
-    let mut state_path = create_state_home()?;
+    let mut state_path = state::path::init_persistent_dir()?;
     state_path.push(target);
 
     let mut state = File::create(&state_path)
         .map_err(|io| FileError::CreatePersistant { path: state_path.clone(), io })?;
 
     state.write_all(&b)
-        .map_err(|io| FileError::WritePersistant { path: state_path, io }.into())
-}
+        .map_err(|io| FileError::WritePersistant { path: state_path.clone(), io })?;
 
-fn escape_path(p: PathBuf, c: char) -> PathBuf {
-    let original = p.into_os_string().into_vec();
-    let c = c as u8;
-
-    let b = {
-        let mut pos = memchr_iter(c, original.as_slice());
-        match pos.next() {
-            Some(i) => {
-                let mut b = original.clone();
-                b.insert(i, c);
-
-                let mut offset = 1;
-
-                pos.for_each(|i| { b.insert(i + offset, c); offset += 1 });
-
-                b
-            }
-            None => original,
-        }
-    };
-
-    unsafe {
-        let mut b = UnsafeCell::new(b);
-
-        let chars = memchr_iter(b'/', &*b.get());
-
-        {
-            let b = &mut *b.get_mut();
-            chars.for_each(|i| b[i] = c);
-        }
-
-        PathBuf::from(OsString::from_vec(b.into_inner()))
-    }
-}
-
-fn create_home(p: impl AsRef<Path>) -> Result<PathBuf, Error> {
-    let p = p.as_ref();
-
-    match std::fs::metadata(p) {
-        Ok(m) if m.is_dir() => {
-            let mut state = p.to_owned();
-            state.push(env!("CARGO_CRATE_NAME"));
-
-            let Err(io) = std::fs::create_dir(&state) else {
-                return Ok(state);
-            };
-
-            match io.kind() {
-                std::io::ErrorKind::AlreadyExists => Ok(state),
-                _ => Err(FileError::CreateLocation { path: state.clone(), io}.into()),
-            }
-        }
-        Ok(_) => Err(FileError::NotDirectory(p.to_owned()).into()),
-        Err(io) => Err(FileError::AccessLocation { path: p.to_owned(), io }.into()),
-    }
-}
-
-fn create_state_home() -> Result<PathBuf, Error> {
-    create_home(&xdg::state())
-}
-
-fn create_runtime_home() -> Result<PathBuf, Error> {
-    create_home(&xdg::runtime())
+    state.sync_all()
+        .map_err(|io| FileError::SyncPersistant { path: state_path, io }.into())
 }

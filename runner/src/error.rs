@@ -6,6 +6,9 @@ use thiserror::Error;
 pub enum Error {
     #[error(transparent)]
     File(#[from] FileError),
+
+    #[error(transparent)]
+    State(#[from] state::error::Error),
 }
 
 impl Debug for Error {
@@ -22,6 +25,12 @@ pub enum FileError {
         path: PathBuf,
     },
 
+    #[error("unable to access a directory ({path})\n↳ {io}")]
+    AccessLocation {
+        io:   std::io::Error,
+        path: PathBuf,
+    },
+
     #[error("couldn't create a file ({path}) for the persistant state information\n↳ {io}")]
     CreatePersistant {
         io:   std::io::Error,
@@ -34,14 +43,8 @@ pub enum FileError {
         path: PathBuf,
     },
 
-    #[error("couldn't create an essential directory ({path})\n↳ {io}")]
-    CreateLocation {
-        io:   std::io::Error,
-        path: PathBuf,
-    },
-
-    #[error("unable to access a directory ({path})\n↳ {io}")]
-    AccessLocation {
+    #[error("couldn't sync the persistant state file to the location ({path})\n↳ {io}")]
+    SyncPersistant {
         io:   std::io::Error,
         path: PathBuf,
     },
@@ -50,8 +53,5 @@ pub enum FileError {
     RuntimeLock {
         io:   std::io::Error,
         path: PathBuf,
-    },
-
-    #[error("expected a directory at {0}, but {0} is not a directory")]
-    NotDirectory(PathBuf),
+    }
 }

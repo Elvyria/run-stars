@@ -1,0 +1,21 @@
+[package]
+name = "run-stars-tui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+argh = "0.1.12"
+async-channel = "2.3.1"
+fs4 = "0.9.0"
+futures-io = "0.3.30"
+futures-lite = "2.3.0"
+futures-time = "3.0.0"
+itertools = "0.13.0"
+jiff = "0.1.4"
+ratatui = "0.27.0"
+state = { path = "../crates/state" }
+xdg = { path = "../crates/xdg" }
+unicode-width = "0.1.13"
+crossterm = { version = "0.28.1", features = ["event-stream"] }
+smallvec = "1.13.2"
+futures-core = "0.3.30"

@@ -1,0 +1,20 @@
+[package]
+name = "run-stars"
+version = "0.1.0"
+authors = ["Elvyria <elvyria@tutanota.com>"]
+repository = "https://github.com/Elvyria/run-stars"
+edition = "2021"
+
+[dependencies]
+argh = "0.1.12"
+async-channel = "2.3.1"
+async-process = "2.2.3"
+fs4 = "0.9.0"
+futures-concurrency = "7.6.1"
+futures-lite = "2.3.0"
+jiff = "0.1.3"
+memchr = "2.7.4"
+rustix = "0.38.34"
+thiserror = "1.0.63"
+state = { path = "../crates/state" }
+xdg = { path = "../crates/xdg" }

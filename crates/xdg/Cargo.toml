@@ -1,0 +1,8 @@
+[package]
+name = "xdg"
+authors = ["Elvyria <elvyria@tutanota.com>"]
+repository = "https://github.com/Elvyria/run-stars"
+edition = "2021"
+
+[dependencies]
+rustix = { version = "0.38.34", features = ["process"] }
