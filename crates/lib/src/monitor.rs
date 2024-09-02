@@ -12,6 +12,7 @@ pub fn monitor() -> io::Result<Map<EventStream<[u8; 512]>, impl FnMut(io::Result
     let persistent_dir = crate::path::persistent_dir();
 
     const MASK: WatchMask = WatchMask::CREATE
+    .union(WatchMask::OPEN)
     .union(WatchMask::DELETE)
     .union(WatchMask::CLOSE_WRITE)
     .union(WatchMask::MOVED_FROM)
@@ -42,7 +43,7 @@ pub fn monitor() -> io::Result<Map<EventStream<[u8; 512]>, impl FnMut(io::Result
                 kind: which(event.wd),
                 file_name: event.name.expect(mask_err_msg),
             },
-            EventMask::CREATE | EventMask::MOVED_TO => StateEvent {
+            EventMask::OPEN | EventMask::CREATE | EventMask::MOVED_TO => StateEvent {
                 event: Event::New,
                 kind: which(event.wd),
                 file_name: event.name.expect(mask_err_msg),
