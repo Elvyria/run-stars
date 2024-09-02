@@ -79,21 +79,6 @@ impl State {
         std::fs::metadata(p).is_ok_and(|meta| meta.is_file())
     }
 
-    pub fn exists(&self) -> bool {
-        let runtime_path = path::runtime_dir().join(&self.file_name);
-        let persistent_path = path::persistent_dir().join(&self.file_name);
-
-        for p in [runtime_path, persistent_path].into_iter() {
-            let meta = std::fs::metadata(p);
-
-            if meta.is_ok_and(|meta| meta.is_file()) {
-                return true
-            }
-        }
-
-        false
-    }
-
     pub fn tasks(&self) -> Result<(Vec<Task>, Vec<Error>), Vec<Error>> {
         let mut current: Option<(PathBuf, SystemTime)> = None;
         let mut errors = Vec::new();
