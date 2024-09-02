@@ -159,10 +159,17 @@ impl App {
             .find_position(|entry| entry.state == state);
 
         if let Some((i, entry)) = existing {
-            entry.state.remove(&state);
+            entry.state.sub(&state);
 
-            match !(entry.state.runtime || entry.state.persistent) {
-                true => {
+            match entry.state.exists() {
+                true => if state.running {
+                    self.task_entries.iter_mut().for_each(|e| {
+                        if e.status == Status::Running {
+                            e.status = Status::Unknown
+                        }
+                    })
+                }
+                false => {
                     self.state_entries.remove(i);
                     self.ui.state_list.len -= 1;
 
@@ -171,13 +178,6 @@ impl App {
                     }
 
                     self.refresh_tasks();
-                }
-                false => if state.running {
-                    self.task_entries.iter_mut().for_each(|e| {
-                        if e.status == Status::Running {
-                            e.status = Status::Unknown
-                        }
-                    })
                 }
             }
         } 

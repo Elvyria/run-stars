@@ -15,28 +15,30 @@ impl Handler for App {
             return Action::Tick
         };
 
+        let state = State::new(io_event.file_name);
+
         match io_event.event {
             monitor::Event::Modified => {
-                match self.is_selected_state(io_event.file_name.as_os_str()) {
+                match self.is_selected_state(state.file_name.as_os_str()) {
                     true  => Action::RefreshTasks,
                     false => Action::Tick,
                 }
             },
             monitor::Event::New => {
                 match io_event.kind {
-                    path::Kind::Runtime => Action::AddState(State::new(io_event.file_name).runtime().running()),
-                    path::Kind::Persistent => Action::AddState(State::new(io_event.file_name).persistent()),
+                    path::Kind::Runtime => Action::AddState(state.runtime().running()),
+                    path::Kind::Persistent => Action::AddState(state.persistent()),
                 }
             },
             monitor::Event::Removed  => {
                 match io_event.kind {
-                    path::Kind::Runtime => Action::RemoveState(State::new(io_event.file_name).runtime().running()),
-                    path::Kind::Persistent => Action::RemoveState(State::new(io_event.file_name).persistent()),
+                    path::Kind::Runtime => Action::RemoveState(state.runtime().running()),
+                    path::Kind::Persistent => Action::RemoveState(state.persistent()),
                 }
             },
             monitor::Event::Closed => {
                 match io_event.kind {
-                    path::Kind::Runtime => Action::RemoveState(State::new(io_event.file_name).running()),
+                    path::Kind::Runtime => Action::RemoveState(state.running()),
                     _                   => Action::Tick,
                 }
             }

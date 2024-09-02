@@ -63,10 +63,17 @@ impl State {
         self.running    |= other.running;
     }
 
-    pub fn remove(&mut self, other: &State) {
-        self.persistent ^= other.persistent;
-        self.runtime    ^= other.runtime;
-        self.running    ^= other.running;
+    pub fn sub(&mut self, other: &State) {
+        // SAFETY: right shifting bool by bool is safe (0x01 >> 0x01, 0x01 >> 0x00)
+        unsafe {
+            self.persistent = std::mem::transmute::<u8, bool>(self.persistent as u8 >> other.persistent as u8);
+            self.runtime    = std::mem::transmute::<u8, bool>(self.runtime    as u8 >> other.runtime    as u8);
+            self.running    = std::mem::transmute::<u8, bool>(self.running    as u8 >> other.running    as u8);
+        }
+    }
+
+    pub fn exists(&self) -> bool {
+        self.persistent || self.runtime
     }
 
     pub fn path(&self) -> PathBuf {

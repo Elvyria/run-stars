@@ -1,6 +1,6 @@
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Flex, Layout, Margin, Rect};
-use ratatui::style::{palette::tailwind, Style, Stylize};
+use ratatui::style::{Style, Stylize};
 use ratatui::text::{Span, Text};
 use ratatui::widgets::block::{Position, Title};
 use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, List, ListItem, ListState, Padding, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table, TableState, Wrap};
@@ -22,6 +22,7 @@ mod theme {
     pub const COLOR_BORDER: Color = tailwind::GRAY.c800;
     pub const COLOR_ERROR: Color = tailwind::LIME.c700;
     pub const COLOR_FOREGROUND: Color = tailwind::SLATE.c200;
+    pub const COLOR_RUNNING: Color = tailwind::INDIGO.c500;
     pub const COLOR_SELECTION: Color = tailwind::GRAY.c600;
     pub const COLOR_SELECTION_FOCUSED: Color = tailwind::PURPLE.c500;
 }
@@ -51,21 +52,20 @@ fn render_state_list(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
     }
 
     let entries = app.state_entries.iter()
-        .map(|f| {
-            let mut item = ListItem::new(f.name.as_str());
-            if f.state.running {
-                let mut text = Text::from(app.ui.state_list.spinner.current().fg(tailwind::INDIGO.c500));
+        .map(|f| match f.state.running {
+            true => {
+                let mut text = Text::from(app.ui.state_list.spinner.current().fg(theme::COLOR_RUNNING));
 
                 text.push_span(Span::raw(" "));
                 text.push_span(Span::raw(&f.name));
 
-                item = ListItem::new(text);
-
                 if tick {
                     app.ui.state_list.spinner.next();
                 }
+
+                ListItem::new(text)
             }
-            item
+            false => ListItem::new(f.name.as_str()),
         });
 
     let border = Block::bordered()
