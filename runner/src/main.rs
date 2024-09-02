@@ -8,15 +8,15 @@ use std::path::{self, Path, PathBuf};
 use std::process::Stdio;
 
 use async_process::Command;
-use fs4::fs_std::FileExt;
+
 use futures_concurrency::future::FutureExt;
 use futures_concurrency::prelude::{ConcurrentStream, IntoConcurrentStream};
 use futures_lite::future;
-use jiff::Timestamp;
-use rustix::path::Arg;
 
-use state::{Status, StateChange, Task};
-use state::write::StateFile;
+use jiff::Timestamp;
+
+use run_stars_lib::{Status, StateChange, Task};
+use run_stars_lib::write::StateFile;
 
 use error::{Error, FileError};
 
@@ -74,18 +74,17 @@ fn main() -> Result<(), Error> {
         return Ok(())
     }
 
-    target_dir = state::path::encode(target_dir);
+    target_dir = run_stars_lib::path::encode(target_dir);
 
-    let mut runtime_path = state::path::init_runtime_dir()?;
+    let mut runtime_path = run_stars_lib::path::init_runtime_dir()?;
     runtime_path.push(&target_dir);
 
     let mut runtime: StateFile = match File::create(&runtime_path) {
-        Ok(fd) => {
-            fd.try_lock_exclusive().map_err(|io| FileError::RuntimeLock { path: runtime_path.clone(), io })?;
-            StateFile::File(fd)
-        },
+        Ok(fd) => StateFile::File(fd),
         Err(_) => StateFile::Sink,
     };
+
+    runtime.lock().unwrap();
 
     let wait_for_processes = processes.into_co_stream().limit(args.limit).for_each(|(i, p, s)| {
         async move {
@@ -140,7 +139,7 @@ fn main() -> Result<(), Error> {
                 }
             }
 
-            if let Err(e) = state::write::write(&mut runtime, &mut buffer, &tasks) {
+            if let Err(e) = run_stars_lib::write::write(&mut runtime, &mut buffer, &tasks) {
                 eprintln!("{e}");
             }
         }
@@ -160,7 +159,7 @@ fn main() -> Result<(), Error> {
 }
 
 fn write_persistant_state(b: &[u8], target: impl AsRef<Path>) -> Result<(), Error> {
-    let mut state_path = state::path::init_persistent_dir()?;
+    let mut state_path = run_stars_lib::path::init_persistent_dir()?;
     state_path.push(target);
 
     let mut state = File::create(&state_path)

@@ -1,3 +1,3 @@
 [workspace]
-members = ["runner", "tui", "crates/state", "crates/xdg"]
+members = ["runner", "tui", "crates/lib", "crates/xdg"]
 resolver = "2"

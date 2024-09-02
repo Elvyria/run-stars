@@ -1,13 +1,14 @@
 pub mod error;
 pub mod path;
-// pub mod read;
 pub mod write;
 pub mod monitor;
 
+use core::panic;
 use std::ffi::OsString;
 use std::fmt::Display;
 use std::fs::{DirEntry, File, FileType};
 use std::io::{BufRead, BufReader, ErrorKind};
+use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::SystemTime;
@@ -15,7 +16,7 @@ use std::time::SystemTime;
 use jiff::Timestamp;
 use memchr::memchr_iter;
 
-use error::{Error, ParseError};
+use error::{Error, LockError, ParseError};
 
 #[derive(Debug)]
 pub struct State {
@@ -32,22 +33,28 @@ impl PartialEq for State {
 }
 
 impl State {
-    pub fn new_runtime(s: OsString) -> Self {
+    pub fn new(s: OsString) -> Self {
         State {
             file_name:  s,
             persistent: false,
-            runtime:    true,
+            runtime:    false,
             running:    false,
         }
     }
 
-    pub fn new_persistent(s: OsString) -> Self {
-        State {
-            file_name:  s,
-            persistent: true,
-            runtime:    false,
-            running:    false,
-        }
+    pub fn runtime(mut self) -> Self {
+        self.runtime = true;
+        self
+    }
+
+    pub fn persistent(mut self) -> Self {
+        self.persistent = true;
+        self
+    }
+
+    pub fn running(mut self) -> Self {
+        self.running = true;
+        self
     }
 
     pub fn add(&mut self, other: &State) {
@@ -198,25 +205,29 @@ impl FromStr for Status {
 }
 
 pub fn states() -> Result<Vec<State>, Error> {
-    fn list_files(path: PathBuf) -> Result<impl Iterator<Item = DirEntry>, Error> {
-        Ok(std::fs::read_dir(&path)
-            .map_err(|io| Error::ListDir { path, io })?
+    fn list_files(p: impl AsRef<Path>) -> Result<impl Iterator<Item = DirEntry>, Error> {
+        let p = p.as_ref();
+
+        Ok(std::fs::read_dir(&p)
+            .map_err(|io| Error::ListDir { path: p.to_owned(), io })?
             .flatten()
             .filter(|f| f.file_type().as_ref().is_ok_and(FileType::is_file)))
     }
 
     let runtime_path = path::init_runtime_dir()?;
 
-    let mut states: Vec<_> = list_files(runtime_path)?
-        .map(|f| {
-            let mut state = State::new_runtime(f.file_name());
+    let mut states: Vec<_> = list_files(runtime_path.as_path())?
+        .filter_map(|f| {
+            let mut state = State::new(f.file_name()).runtime();
 
-            // TODO: LCK feature
-            if false {
-                state.running = true;
+            match is_locked(runtime_path.join(&state.file_name)) {
+                Ok(running) => {
+                    state.running = running;
+                    Some(state)
+                },
+                Err(io) if io.kind() == std::io::ErrorKind::NotFound => None,
+                Err(_) => Some(state),
             }
-
-            state
         })
         .collect();
 
@@ -226,7 +237,7 @@ pub fn states() -> Result<Vec<State>, Error> {
         .for_each(|f| match states.iter_mut().find(|state| state.file_name == f.file_name()) {
             Some(state) => state.persistent = true,
             None => {
-                let state = State::new_persistent(f.file_name());
+                let state = State::new(f.file_name()).persistent();
                 states.push(state);
             }
         });
@@ -234,9 +245,35 @@ pub fn states() -> Result<Vec<State>, Error> {
     Ok(states)
 }
 
+fn is_locked(p: impl AsRef<Path>) -> Result<bool, std::io::Error> {
+    let p = p.as_ref();
+    let fd = File::open(p)?;
+            
+    let mut lock = libc::flock {
+        l_type:   libc::F_WRLCK as _,
+        l_whence: 0,
+        l_start:  0,
+        l_len:    0,
+        l_pid:    0,
+    };
+
+    match unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETLK, std::ptr::from_mut(&mut lock)) } {
+        -1 => {
+            // This should never happen, because function argument are valid
+            let e = LockError::Get {
+                io: std::io::Error::last_os_error(),
+                path: p.to_path_buf(),
+            };
+
+            panic!("{e:?}");
+        },
+        _  => Ok(lock.l_type != libc::F_UNLCK as i16),
+    }
+}
+
 pub const SPLIT_CHAR: char = ',';
 
-fn parse(p: impl AsRef<Path> + Copy) -> Result<Vec<Task>, Error> {
+fn parse(p: impl AsRef<Path>) -> Result<Vec<Task>, Error> {
     let p = p.as_ref();
 
     if !p.is_file() {

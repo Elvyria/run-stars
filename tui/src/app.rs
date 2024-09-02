@@ -1,20 +1,21 @@
+use std::io;
 use std::ffi::OsStr;
 use std::fmt::Display;
-use std::io;
 use std::os::unix::ffi::OsStringExt;
-use std::path::Path;
 
 use futures_lite::{FutureExt, StreamExt};
 use futures_time::time::Duration;
 
 use itertools::Itertools;
+
 use jiff::tz::TimeZone;
 use jiff::{Span, Timestamp};
 
 use ratatui::Terminal;
 use ratatui::backend::Backend;
 
-use state::{State, Status, Task};
+use run_stars_lib::error::Error;
+use run_stars_lib::{State, Status, Task};
 
 use crate::handler::Handler;
 use crate::render::{render, Selection, StateList, TaskTable, UI};
@@ -66,10 +67,7 @@ impl From<Task> for TaskEntry {
                 let v = task.path.into_os_string().into_vec();
                 String::from_utf8_unchecked(v)
             },
-            time:   {
-                task.time.to_zoned(TimeZone::system()).strftime("%a %b %e %I:%M:%S %p").to_string()
-            },
-
+            time: task.time.to_zoned(TimeZone::system()).strftime("%a %b %e %I:%M:%S %p").to_string(),
             spinner: Spinner::new(spinner::BRAILE),
         }
     }
@@ -87,53 +85,30 @@ pub struct ErrorEntry {
 
 impl ErrorEntry {
     fn new(e: impl Display, severity: Severity) -> Self {
+        let mut message = format!("{e}");
+
+        if let Some(c) = message.get_mut(..1) {
+            c.make_ascii_uppercase();
+        }
+
         ErrorEntry {
-            message: format!("{e}"),
+            message,
             severity
         }
     }
 }
 
 impl App {
-    pub fn new(p: Option<&Path>) -> Self {
-        let mut last_error = None;
-        let mut task_entries = Vec::new();
+    pub fn new(dir: Option<String>) -> Result<Self, Error> {
         let mut selection = Selection::StateList;
 
-        // fn tasks() {
-        //     match state.tasks() {
-        //         Ok((tasks, errors)) => {
-        //             task_entries = tasks.into_iter().map(TaskEntry::from).collect();
-        //             last_error = errors.last().map(|e| ErrorEntry::new(e, Severity::Low));
-        //         },
-        //         Err(errors) => {
-        //             last_error = errors.last().map(|e| ErrorEntry::new(e, Severity::High));
-        //         },
-        //     }
-        // }
-
-        let mut state_entries: Vec<StateEntry> = state::states().unwrap().into_iter().map(|state| {
-            let path = state.path();
-
-            if p.filter(|&p| p == path).is_some() {
-                match state.tasks() {
-                    Ok((tasks, errors)) => {
-                        task_entries = tasks.into_iter().map(TaskEntry::from).collect();
-                        last_error = errors.last().map(|e| ErrorEntry::new(e, Severity::Low));
-                    },
-                    Err(errors) => {
-                        last_error = errors.last().map(|e| ErrorEntry::new(e, Severity::High));
-                    },
-                }
-
-                selection = Selection::TaskTable;
-            }
-
-            StateEntry {
-                name: path.to_string_lossy().to_string(),
+        let mut state_entries: Vec<_> = run_stars_lib::states()?
+            .into_iter()
+            .map(|state| StateEntry {
+                name: state.path().to_string_lossy().to_string(),
                 state,
-            }
-        }).collect();
+            })
+            .collect();
 
         state_entries.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
 
@@ -141,31 +116,27 @@ impl App {
             selection = Selection::TaskTable;
         }
 
-        if p.is_none() {
-            if let Some(entry) = state_entries.first() {
-                match entry.state.tasks() {
-                    Ok((tasks, errors)) => {
-                        task_entries = tasks.into_iter().map(TaskEntry::from).collect();
-                        last_error = errors.last().map(|e| ErrorEntry::new(e, Severity::Low));
-                    },
-                    Err(errors) => {
-                        last_error = errors.last().map(|e| ErrorEntry::new(e, Severity::High));
-                    },
-                }
-            }
-        }
-
-        Self {
+        let mut app = Self {
             ui: UI {
-                task_table:  TaskTable::new(task_entries.len()),
+                task_table:  TaskTable::new(0),
                 state_list:  StateList::new(state_entries.len()),
                 selection,
             },
 
             state_entries,
-            task_entries,
-            last_error,
+            task_entries: Vec::new(),
+            last_error:  None,
+        };
+
+        if let Some(dir) = dir {
+            app.state_entries.iter()
+                .position(|entry| entry.name == dir)
+                .map(|i| app.ui.state_list.select(i));
         }
+
+        app.refresh_tasks();
+
+        Ok(app)
     }
 
     fn add_state_unchecked(&mut self, state: State) {
@@ -190,9 +161,24 @@ impl App {
         if let Some((i, entry)) = existing {
             entry.state.remove(&state);
 
-            if !(entry.state.runtime || entry.state.persistent) {
-                self.state_entries.remove(i);
-                self.ui.state_list.len -= 1;
+            match !(entry.state.runtime || entry.state.persistent) {
+                true => {
+                    self.state_entries.remove(i);
+                    self.ui.state_list.len -= 1;
+
+                    if i == self.state_entries.len() {
+                        self.ui.state_list.previous();
+                    }
+
+                    self.refresh_tasks();
+                }
+                false => if state.running {
+                    self.task_entries.iter_mut().for_each(|e| {
+                        if e.status == Status::Running {
+                            e.status = Status::Unknown
+                        }
+                    })
+                }
             }
         } 
     }
@@ -206,22 +192,33 @@ impl App {
     }
 
     fn refresh_tasks(&mut self) {
-        let i = self.ui.state_list.selected();
+        self.task_entries.clear();
 
-        let entry = self.state_entries.get_mut(i).unwrap();
+        let entry = self.selected_state().unwrap();
+        let running = entry.state.runtime && entry.state.running;
 
         match entry.state.tasks() {
             Ok((tasks, errors)) => {
-                self.task_entries = tasks.into_iter().map(TaskEntry::from).collect();
-                self.last_error = errors.last().map(|e| ErrorEntry::new(e, Severity::Low));
+                self.task_entries.extend(tasks.into_iter().map(|mut task| {
+                    if task.status == Status::Running && !running  {
+                        task.status = Status::Unknown;
+                    }
+
+                    TaskEntry::from(task)
+                }));
+
+                self.set_error(errors.last(), Severity::Low);
             },
             Err(errors) => {
-                self.task_entries = Vec::new();
-                self.last_error = errors.last().map(|e| ErrorEntry::new(e, Severity::High));
+                self.set_error(errors.last(), Severity::High);
             },
         }
 
         self.ui.task_table.set_len(self.task_entries.len());
+    }
+
+    pub fn set_error(&mut self, e: Option<impl Display>, severity: Severity) {
+        self.last_error = e.map(|e| ErrorEntry::new(e, severity));
     }
 
     pub fn quit(&mut self) -> Action {
@@ -238,10 +235,9 @@ pub async fn run<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
     use futures_time::prelude::*;
 
     let mut ui_events = crossterm::event::EventStream::new();
-    let mut fs_events = state::monitor::monitor().unwrap();
+    let mut fs_events = run_stars_lib::monitor::monitor().unwrap();
 
-    // TODO: Recalculate timeout if caught an event
-    let timeout = Duration::from_millis(100);
+    let mut timeout: Duration = Duration::from_millis(100);
     let mut interval = Interval::new(timeout.into());
 
     loop {
@@ -267,6 +263,8 @@ pub async fn run<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
             Action::RemoveState(state) => app.remove_state_unchecked(state),
             Action::Quit => break,
         }
+
+        timeout = interval.delta().into();
     }
 
     Ok(())
@@ -283,6 +281,18 @@ impl Interval {
             baseline: Timestamp::now(),
             delta: Span::try_from(delta).expect("this is a compile time value that should be \"correct\""),
         }
+    }
+
+    fn delta(&self) -> std::time::Duration {
+        let now = Timestamp::now();
+
+        // SAFETY: jiff - the time library guarantees that default Timestamp configuration doesn't cause errors
+        let since = unsafe { now.since(self.baseline).unwrap_unchecked() };
+
+        // SAFETY: self.delta converted from std::time::Duration in Self::new
+        self.delta.checked_sub(since)
+            .and_then(std::time::Duration::try_from)
+            .unwrap_or_else(|_| unsafe { self.delta.try_into().unwrap_unchecked() })
     }
 
     fn is_late(&mut self) -> bool {

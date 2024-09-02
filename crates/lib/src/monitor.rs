@@ -13,7 +13,7 @@ pub fn monitor() -> io::Result<Map<EventStream<[u8; 512]>, impl FnMut(io::Result
 
     const MASK: WatchMask = WatchMask::CREATE
     .union(WatchMask::DELETE)
-    // .union(WatchMask::CLOSE_WRITE)
+    .union(WatchMask::CLOSE_WRITE)
     .union(WatchMask::MOVED_FROM)
     .union(WatchMask::MOVED_TO)
     .union(WatchMask::MODIFY);
@@ -31,15 +31,7 @@ pub fn monitor() -> io::Result<Map<EventStream<[u8; 512]>, impl FnMut(io::Result
         }
     };
 
-    // let full_path = move |event: Event<OsString>| {
-    //     let name = event.name.expect("watch mask doesn't include flags for directories");
-
-    //     match event.wd {
-    //         wd if wd == runtime_wd => runtime_dir.join(name),
-    //         wd if wd == persistent_wd => persistent_dir.join(name),
-    //         _ => unreachable!("inotify has recieved an unknown watch descriptor"),
-    //     }
-    // };
+    let mask_err_msg = "watch mask doesn't include flags for directories";
 
     let stream = inotify.into_event_stream([0; 512])?.map(move |event| {
         let event = event.unwrap();
@@ -48,21 +40,25 @@ pub fn monitor() -> io::Result<Map<EventStream<[u8; 512]>, impl FnMut(io::Result
             EventMask::MODIFY => StateEvent {
                 event: Event::Modified,
                 kind: which(event.wd),
-                file_name: event.name.expect("watch mask doesn't include flags for directories"),
+                file_name: event.name.expect(mask_err_msg),
             },
             EventMask::CREATE | EventMask::MOVED_TO => StateEvent {
                 event: Event::New,
                 kind: which(event.wd),
-                file_name: event.name.expect("watch mask doesn't include flags for directories"),
+                file_name: event.name.expect(mask_err_msg),
             },
             EventMask::DELETE | EventMask::MOVED_FROM => StateEvent {
                 event: Event::Removed,
                 kind: which(event.wd),
-                file_name: event.name.expect("watch mask doesn't include flags for directories"),
+                file_name: event.name.expect(mask_err_msg),
+            },
+            EventMask::CLOSE_WRITE => StateEvent {
+                event: Event::Closed,
+                kind: which(event.wd),
+                file_name: event.name.expect(mask_err_msg),
             },
             EventMask::Q_OVERFLOW => {
-                // TODO: Logging
-                panic!("buffer for inotify events is not big enough.")
+                panic!("buffer for inotify events is not big enough to handle all events")
             }
             _ => unreachable!("inotify got an unknown event ({event:?})")
         }
@@ -83,4 +79,5 @@ pub enum Event {
     New,
     Modified,
     Removed,
+    Closed,
 }

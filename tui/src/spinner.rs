@@ -1,10 +1,12 @@
 pub const BRAILE: &str = "⣧⣏⡟⠿⢻⣹⣼⣶";
-pub const BOUNCE: &str = "⡀⠄⠂⠁⠈⠐⠠⢀⠠⠐⠈⠁⠂⠄";
 pub const ARROW:  &str = "▹▸▹▹▹";
 
+#[allow(dead_code)] 
+pub const BOUNCE: &str = "⡀⠄⠂⠁⠈⠐⠠⢀⠠⠐⠈⠁⠂⠄";
+
 pub struct Spinner {
-    chars: &'static str,
-    size: usize,
+    chars:   &'static str,
+    size:    usize,
     current: usize,
 }
 
@@ -17,19 +19,13 @@ impl Spinner {
         }
     }
 
+    #[inline]
     pub fn next(&mut self) {
-        // SAFETY: char arrays are very small compared to usize::MAX
-        unsafe {
-            if self.current < self.chars.len().unchecked_sub(self.size) {
-                self.current = self.current.unchecked_add(self.size);
-            } else {
-                self.current = 0;
-            }
-        }
+        self.current = (self.current + self.size) % self.chars.len();
     }
 
     pub fn current(&self) -> &'static str {
         // SAFETY: Spinner::next keeps index in bounds
-        unsafe { self.chars.get_unchecked(self.current..self.current.unchecked_add(self.size)) }
+        unsafe { self.chars.get_unchecked(self.current..self.current + self.size) }
     }
 }

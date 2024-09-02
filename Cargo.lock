@@ -107,7 +107,7 @@ dependencies = [
  "futures-lite 2.3.0",
  "parking",
  "polling 3.7.3",
- "rustix 0.38.34",
+ "rustix 0.38.35",
  "slab",
  "tracing",
  "windows-sys 0.59.0",
@@ -148,7 +148,7 @@ dependencies = [
  "cfg-if",
  "event-listener 5.3.1",
  "futures-lite 2.3.0",
- "rustix 0.38.34",
+ "rustix 0.38.35",
  "tracing",
  "windows-sys 0.59.0",
 ]
@@ -165,7 +165,7 @@ dependencies = [
  "cfg-if",
  "futures-core",
  "futures-io",
- "rustix 0.38.34",
+ "rustix 0.38.35",
  "signal-hook-registry",
  "slab",
  "windows-sys 0.59.0",
@@ -308,7 +308,7 @@ dependencies = [
  "futures-core",
  "mio 1.0.2",
  "parking_lot",
- "rustix 0.38.34",
+ "rustix 0.38.35",
  "signal-hook",
  "signal-hook-mio",
  "winapi",
@@ -386,16 +386,6 @@ name = "fastrand"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
-
-[[package]]
-name = "fs4"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8c6b3bd49c37d2aa3f3f2220233b29a7cd23f79d1fe70e5337d25fb390793de"
-dependencies = [
- "rustix 0.38.34",
- "windows-sys 0.52.0",
-]
 
 [[package]]
 name = "funty"
@@ -612,9 +602,9 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
 name = "jiff"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ef8bc400f8312944a9f879db116fed372c4f0859af672eba2a80f79c767dd19"
+checksum = "362be9c702bada57298130d0565e9c389e6d4024a541692f01819e21abc3e26a"
 dependencies = [
  "jiff-tzdb-platform",
  "windows-sys 0.59.0",
@@ -825,7 +815,7 @@ dependencies = [
  "concurrent-queue",
  "hermit-abi 0.4.0",
  "pin-project-lite",
- "rustix 0.38.34",
+ "rustix 0.38.35",
  "tracing",
  "windows-sys 0.59.0",
 ]
@@ -930,13 +920,25 @@ dependencies = [
  "argh",
  "async-channel 2.3.1",
  "async-process",
- "fs4",
  "futures-concurrency",
  "futures-lite 2.3.0",
  "jiff",
  "memchr",
- "rustix 0.38.34",
- "state",
+ "run-stars-lib",
+ "rustix 0.38.35",
+ "thiserror",
+ "xdg",
+]
+
+[[package]]
+name = "run-stars-lib"
+version = "0.0.0"
+dependencies = [
+ "futures-lite 2.3.0",
+ "inotify",
+ "jiff",
+ "libc",
+ "memchr",
  "thiserror",
  "xdg",
 ]
@@ -948,16 +950,13 @@ dependencies = [
  "argh",
  "async-channel 2.3.1",
  "crossterm 0.28.1",
- "fs4",
  "futures-core",
- "futures-io",
  "futures-lite 2.3.0",
  "futures-time",
  "itertools",
  "jiff",
  "ratatui",
- "smallvec",
- "state",
+ "run-stars-lib",
  "unicode-width",
  "xdg",
 ]
@@ -978,9 +977,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.34"
+version = "0.38.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70dc5ec042f7a43c4a73241207cecc9873a06d45debb38b329f8541d85c2730f"
+checksum = "a85d50532239da68e9addb745ba38ff4612a242c1c7ceea689c4bc7c2f43c36f"
 dependencies = [
  "bitflags 2.6.0",
  "errno",
@@ -1094,18 +1093,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "state"
-version = "0.0.0"
-dependencies = [
- "futures-lite 2.3.0",
- "inotify",
- "jiff",
- "memchr",
- "thiserror",
- "xdg",
-]
-
-[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1159,7 +1146,7 @@ dependencies = [
  "cfg-if",
  "fastrand 2.1.1",
  "once_cell",
- "rustix 0.38.34",
+ "rustix 0.38.35",
  "windows-sys 0.59.0",
 ]
 
@@ -1429,7 +1416,7 @@ dependencies = [
 name = "xdg"
 version = "0.0.0"
 dependencies = [
- "rustix 0.38.34",
+ "rustix 0.38.35",
 ]
 
 [[package]]

@@ -1,12 +1,6 @@
-use std::{fs::File, io::Write, os::unix::fs::FileExt};
+use std::{fs::File, io::Write, os::{fd::AsRawFd, unix::fs::FileExt}};
 
 use crate::{Task, SPLIT_CHAR};
-
-// This is &mut dyn std::io::Write without complications.
-pub enum StateFile {
-    File(File),
-    Sink,
-}
 
 pub fn write(mut w: impl Write, buffer: &mut Vec<u8>, tasks: &[Task]) -> Result<(), std::io::Error> {
     buffer.clear();
@@ -21,6 +15,32 @@ pub fn write(mut w: impl Write, buffer: &mut Vec<u8>, tasks: &[Task]) -> Result<
 
     w.write(&buffer)?;
     w.flush()
+}
+
+pub enum StateFile {
+    File(File),
+    Sink,
+}
+
+impl StateFile {
+    pub fn lock(&self) -> Result<(), std::io::Error> {
+        let Self::File(fd) = self else {
+            return Ok(())
+        };
+
+        let mut lock = libc::flock {
+            l_type:   libc::F_WRLCK  as _,
+            l_whence: libc::SEEK_END as _,
+            l_start:  0,
+            l_len:    0,
+            l_pid:    0,
+        };
+
+        match unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_SETLKW, std::ptr::from_mut(&mut lock)) } {
+            -1 => Err(std::io::Error::last_os_error()),
+            _  => Ok(()),
+        }
+    }
 }
 
 impl Write for StateFile {

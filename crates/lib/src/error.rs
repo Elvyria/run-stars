@@ -86,9 +86,31 @@ pub enum ParseError {
     Path(String),
 }
 
+#[derive(Error)]
+pub enum LockError {
+    #[error("couldn't place a lock on a state file ({path}) for writing\n{io}")]
+    Set {
+        io: std::io::Error,
+        path: PathBuf,
+    },
+
+    #[error("unable to get the lock state of a state file ({path})\n{io}")]
+    Get {
+        io: std::io::Error,
+        path: PathBuf,
+    }
+}
+
 #[inline]
-fn beautify_newline(s: String) -> String {
-        s.replace("\n", "\n↳ ")
+pub fn beautify_newline(s: String) -> String {
+    s.replace("\n", "\n↳ ")
+}
+
+impl Debug for LockError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = beautify_newline(format!("{}", self));
+        f.write_str(s.as_str())
+    }
 }
 
 impl Debug for ParseError {

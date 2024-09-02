@@ -1,5 +1,5 @@
 [package]
-name = "state"
+name = "run-stars-lib"
 authors = ["Elvyria <elvyria@tutanota.com>"]
 repository = "https://github.com/Elvyria/run-stars"
 edition = "2021"
@@ -8,6 +8,7 @@ edition = "2021"
 futures-lite = "2.3.0"
 inotify = { path = "../inotify" }
 jiff = "0.1.3"
+libc = "0.2.158"
 memchr = "2.7.4"
 thiserror = "1.0.63"
 xdg = { path = "../xdg" }

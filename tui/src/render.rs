@@ -1,11 +1,11 @@
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Flex, Layout, Margin, Rect};
 use ratatui::style::{palette::tailwind, Style, Stylize};
-use ratatui::text::{Line, Span, Text};
+use ratatui::text::{Span, Text};
 use ratatui::widgets::block::{Position, Title};
 use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, List, ListItem, ListState, Padding, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table, TableState, Wrap};
 
-use state::Status;
+use run_stars_lib::Status;
 
 use crate::app::{Action, App, ErrorEntry, Severity, TaskEntry};
 use crate::spinner::{self, Spinner};
@@ -13,6 +13,10 @@ use crate::spinner::{self, Spinner};
 mod theme {
     use ratatui::style::Color;
     use ratatui::style::palette::tailwind;
+
+    pub const COLOR_STATE_SUCCESS: Color = tailwind::GREEN.c400;
+    pub const COLOR_STATE_FAILURE: Color = tailwind::ROSE.c500;
+    pub const COLOR_STATE_RUNNING: Color = tailwind::YELLOW.c400;
 
     pub const COLOR_BLOCK_TITLE: Color = tailwind::GRAY.c500;
     pub const COLOR_BORDER: Color = tailwind::GRAY.c800;
@@ -49,7 +53,7 @@ fn render_state_list(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
     let entries = app.state_entries.iter()
         .map(|f| {
             let mut item = ListItem::new(f.name.as_str());
-            if f.state.runtime {
+            if f.state.running {
                 let mut text = Text::from(app.ui.state_list.spinner.current().fg(tailwind::INDIGO.c500));
 
                 text.push_span(Span::raw(" "));
@@ -69,13 +73,12 @@ fn render_state_list(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
         .border_type(BorderType::Rounded).fg(theme::COLOR_BORDER);
 
     let l = List::new(entries)
-    .highlight_style(style_selected)
-    .highlight_spacing(HighlightSpacing::WhenSelected)
-    .block(border)
-    .fg(theme::COLOR_FOREGROUND);
+        .highlight_style(style_selected)
+        .highlight_spacing(HighlightSpacing::WhenSelected)
+        .block(border)
+        .fg(theme::COLOR_FOREGROUND);
 
     f.render_stateful_widget(l, area, &mut app.ui.state_list.state);
-    // f.render_widget(Line::from("Directories").bg(tailwind::INDIGO.c600).fg(tailwind::WHITE), area);
 }
 
 fn table_header() -> Row<'static> {
@@ -88,26 +91,27 @@ fn table_header() -> Row<'static> {
 }
 
 fn status(entry: &TaskEntry) -> Span {
+    use run_stars_lib::Status;
+
     match entry.status {
-        state::Status::Success => "✓".fg(tailwind::GREEN.c400),
-        state::Status::Failure => "✗".fg(tailwind::ROSE.c500),
-        state::Status::Running => entry.spinner.current().fg(tailwind::YELLOW.c400),
-        state::Status::Waiting => Span::raw("⧖"),
-        state::Status::Unknown => Span::raw("?"),
+        Status::Success => "✓".fg(theme::COLOR_STATE_SUCCESS),
+        Status::Failure => "✗".fg(theme::COLOR_STATE_FAILURE),
+        Status::Running => entry.spinner.current().fg(theme::COLOR_STATE_RUNNING),
+        Status::Waiting => Span::raw("⧖"),
+        Status::Unknown => "?".fg(theme::COLOR_BLOCK_TITLE),
     }
 }
 
 fn render_task_table(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
-    let key_legend: Title = Title::from("(Esc) quit | (↑) move up | (↓) move down")
+    let key_legend = Title::from("(Esc) quit | (↑) move up | (↓) move down")
         .alignment(Alignment::Right)
         .position(Position::Bottom);
 
-    // TODO: useless clone
-    let state_name: Title = Title::from(app.selected_state().map(|entry| entry.name.clone()).unwrap_or_default())
+    let state_name = Title::from(app.selected_state().map(|entry| entry.name.clone()).unwrap_or_default())
         .alignment(Alignment::Left)
         .position(Position::Bottom);
 
-    let mut style_selected: Style = Style::new()
+    let mut style_selected = Style::new()
         .fg(theme::COLOR_SELECTION);
 
     if app.ui.selection == Selection::TaskTable {
@@ -182,6 +186,7 @@ fn render_error_block(f: &mut Frame, area: Rect, message: &str) {
     let border = Block::bordered()
         .border_type(BorderType::Rounded)
         .fg(theme::COLOR_BORDER)
+        .padding(Padding::uniform(2))
         .title(title)
         .title_style(Style::new().fg(theme::COLOR_BLOCK_TITLE));
 
@@ -191,8 +196,7 @@ fn render_error_block(f: &mut Frame, area: Rect, message: &str) {
         .wrap(Wrap { trim: false })
         .fg(theme::COLOR_ERROR);
 
-
-    let area = center(
+    let area = center_of(
         area,
         Constraint::Percentage(50),
         Constraint::Length(10),
@@ -202,16 +206,41 @@ fn render_error_block(f: &mut Frame, area: Rect, message: &str) {
 }
 
 fn render_error_notice(f: &mut Frame, area: Rect, message: &str) {
+    let title: Title = Title::from("Error")
+        .alignment(Alignment::Center)
+        .position(Position::Top);
+
+    let border = Block::bordered()
+        .border_type(BorderType::Rounded)
+        .fg(theme::COLOR_BORDER)
+        .padding(Padding::new(2, 2, 1, 1))
+        .title(title)
+        .title_style(Style::new().fg(theme::COLOR_BLOCK_TITLE));
+
+    let p = Paragraph::new(message)
+        .block(border)
+        .wrap(Wrap { trim: false })
+        .fg(theme::COLOR_ERROR);
+
+    let area = bottom_of(
+        area.inner(Margin::new(4, 2)),
+        Constraint::Fill(0),
+        Constraint::Length(5),
+    );
+
+    f.render_widget(p, area);
 }
 
 // Thanks! ♥ https://ratatui.rs/recipes/layout/center-a-rect/
-fn center(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
-    let [area] = Layout::horizontal([horizontal])
-        .flex(Flex::Center)
-        .areas(area);
-
+fn center_of(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
+    let [area] = Layout::horizontal([horizontal]).flex(Flex::Center).areas(area);
     let [area] = Layout::vertical([vertical]).flex(Flex::Center).areas(area);
+    area
+}
 
+fn bottom_of(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
+    let [area] = Layout::horizontal([horizontal]).flex(Flex::Center).areas(area);
+    let [area] = Layout::vertical([vertical]).flex(Flex::End).areas(area);
     area
 }
 
@@ -275,7 +304,7 @@ impl UI {
     }
 
     pub fn focus_task_table(&mut self) -> Action {
-        if self.selection != Selection::TaskTable {
+        if self.selection != Selection::TaskTable && self.task_table.len != 0 {
             self.selection = Selection::TaskTable;
 
             if self.task_table.state.selected().is_none() {
@@ -313,7 +342,7 @@ impl TaskTable {
         self.state.select(None);
     }
 
-    fn next(&mut self) -> usize {
+    pub fn next(&mut self) -> usize {
         if self.len == 0 { return 0 }
 
         let i = match self.state.selected().filter(|&i| i < self.len.saturating_sub(1)) {
@@ -327,7 +356,7 @@ impl TaskTable {
         return i
     }
 
-    fn previous(&mut self) -> usize {
+    pub fn previous(&mut self) -> usize {
         if self.len == 0 { return 0 }
 
         let i = self.state.selected().map_or(0, |i| match i == 0 {
@@ -362,7 +391,12 @@ impl StateList {
         }
     }
 
-    fn next(&mut self) -> usize {
+    #[inline]
+    pub fn select(&mut self, i: usize) {
+        self.state.select(Some(i));
+    }
+
+    pub fn next(&mut self) -> usize {
         if self.len == 0 { return 0 }
 
         let i = match self.state.selected().filter(|&i| i < self.len.saturating_sub(1)) {
@@ -375,7 +409,7 @@ impl StateList {
         return i
     }
 
-    fn previous(&mut self) -> usize {
+    pub fn previous(&mut self) -> usize {
         if self.len == 0 { return 0 }
 
         let i = self.state.selected().map_or(0, |i| match i == 0 {

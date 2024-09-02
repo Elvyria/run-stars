@@ -1,5 +1,5 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
-use state::{monitor::{self, StateEvent}, path, State};
+use run_stars_lib::{monitor::{self, StateEvent}, path, State};
 
 use crate::app::{Action, App};
 
@@ -24,16 +24,22 @@ impl Handler for App {
             },
             monitor::Event::New => {
                 match io_event.kind {
-                    path::Kind::Runtime => Action::AddState(State::new_runtime(io_event.file_name)),
-                    path::Kind::Persistent => Action::AddState(State::new_persistent(io_event.file_name)),
+                    path::Kind::Runtime => Action::AddState(State::new(io_event.file_name).runtime().running()),
+                    path::Kind::Persistent => Action::AddState(State::new(io_event.file_name).persistent()),
                 }
             },
             monitor::Event::Removed  => {
                 match io_event.kind {
-                    path::Kind::Runtime => Action::RemoveState(State::new_runtime(io_event.file_name)),
-                    path::Kind::Persistent => Action::RemoveState(State::new_persistent(io_event.file_name)),
+                    path::Kind::Runtime => Action::RemoveState(State::new(io_event.file_name).runtime().running()),
+                    path::Kind::Persistent => Action::RemoveState(State::new(io_event.file_name).persistent()),
                 }
             },
+            monitor::Event::Closed => {
+                match io_event.kind {
+                    path::Kind::Runtime => Action::RemoveState(State::new(io_event.file_name).running()),
+                    _                   => Action::Tick,
+                }
+            }
         }
     }
 
