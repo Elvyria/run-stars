@@ -194,7 +194,10 @@ impl App {
     fn refresh_tasks(&mut self) {
         self.task_entries.clear();
 
-        let entry = self.selected_state().unwrap();
+        let Some(entry) = self.selected_state() else {
+            return
+        };
+
         let running = entry.state.runtime && entry.state.running;
 
         match entry.state.tasks() {
