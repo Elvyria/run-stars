@@ -1,5 +1,9 @@
 # inotify-rs [![crates.io](https://img.shields.io/crates/v/inotify.svg)](https://crates.io/crates/inotify) [![Documentation](https://docs.rs/inotify/badge.svg)](https://docs.rs/inotify) [![Rust](https://github.com/hannobraun/inotify-rs/actions/workflows/rust.yml/badge.svg)](https://github.com/hannobraun/inotify-rs/actions/workflows/rust.yml)
 
+## Changes
+* Removed Tokio dependency ([src/stream.rs](./src/stream.rs)).
+* Removed tests to lighten the git tree.
+
 Idiomatic [inotify] wrapper for the [Rust programming language].
 
 ```Rust
