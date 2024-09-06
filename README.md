@@ -5,6 +5,26 @@ A way to run cron jobs in parallel and monitor their state.
 
 🚧 README, LICENSE 🚧
 
+## Usage
+This projects comes with two binaries:
+- Runner - `run-stars`
+- TUI - ``run-stars-tui``
+
+Runner is responsible for execution of files in a given directory and updates to the correlating state:
+```sh
+(sudo) run-stars -- /etc/cron.daily
+```
+By default the runner will execute all files at the same time, but this behavior can be restricted with a `--limit` flag, which will limit the amount of tasks that run simultaneously:
+```sh
+(sudo) run-stars --limit 1 -- /etc/cron.daily
+```
+
+
+TUI on the other hand provides a comfortable way of monitoring all running, finished and dangling states that runner reports:
+```sh
+(sudo) run-stars-tui -- [Optional Directory: /etc/cron.daily]
+```
+
 ## Building
 To build this little thing, you'll need some [Rust](https://www.rust-lang.org/).
 
