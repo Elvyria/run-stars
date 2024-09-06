@@ -1,4 +1,5 @@
-# ⋆★ run-stars ★⋆
+# ⭐ run-stars ⭐
+
 #### " How are my cron jobs doing? Are they even working? Did something fail? "
 
 Did you know that cron and similar projects are not actually responsible for running files that reside in:
@@ -10,7 +11,10 @@ What actually runs them is usually a [run-parts⁸](https://manpages.ubuntu.com/
 But it would be good to know if something has failed, right?  
 Because if we don't know, we might as well just not run our tasks at all.
 
-Now there's a simple way to know! Featuring a [run-parts⁸](https://manpages.ubuntu.com/manpages/focal/en/man8/run-parts.8.html) replacement with a beautiful TUI.
+Now there's a simple way to know! Featuring a [run-parts⁸](https://manpages.ubuntu.com/manpages/focal/en/man8/run-parts.8.html) replacement with a beautiful TUI.  
+
+![TUI Demo Image](https://github.com/user-attachments/assets/a50cfa67-4d7f-456c-8a5f-d3062956b082)
+
 
 ## Features
 - Active job monitoring.
