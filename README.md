@@ -1,4 +1,4 @@
-# run-stars
+# ⋆★ run-stars ★⋆
 #### " How are my cron jobs doing? Are they even working? Did something fail? "
 
 Did you know that cron and similar projects are not actually responsible for running files that reside in:
