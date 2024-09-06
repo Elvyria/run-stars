@@ -5,6 +5,15 @@ A way to run cron jobs in parallel and monitor their state.
 
 🚧 README, LICENSE 🚧
 
+## Building
+To build this little thing, you'll need some [Rust](https://www.rust-lang.org/).
+
+```sh
+git clone --depth 1 https://github.com/Elvyria/run-stars
+cd run-stars
+cargo build --locked --release
+```
+
 ## Locations
 To not torture the persistent storage without a need, the runner first writes the state in a runtime directory, that usually points to a part in random access memory.
 ```sh
