@@ -42,6 +42,7 @@ impl Handler for App {
                     _                   => Action::Tick,
                 }
             }
+            monitor::Event::Unknown => Action::Tick,
         }
     }
 

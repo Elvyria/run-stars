@@ -61,7 +61,11 @@ pub fn monitor() -> io::Result<Map<EventStream<[u8; 512]>, impl FnMut(io::Result
             EventMask::Q_OVERFLOW => {
                 panic!("buffer for inotify events is not big enough to handle all events")
             }
-            _ => unreachable!("inotify got an unknown event ({event:?})")
+            _ => StateEvent {
+                event: Event::Unknown,
+                kind: which(event.wd),
+                file_name: event.name.expect(mask_err_msg),
+            },
         }
     });
 
@@ -81,4 +85,5 @@ pub enum Event {
     Modified,
     Removed,
     Closed,
+    Unknown,
 }
