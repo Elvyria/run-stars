@@ -1,9 +1,22 @@
 # run-stars
+#### " How are my cron jobs doing? Are they even working? Did something fail? "
 
-A way to run cron jobs in parallel and monitor their state.
-(run-parts replacement, with an ability to create a WEB/TUI/GUI clients that show job states)
+Did you know that cron and similar projects are not actually responsible for running files that reside in:
+- `/etc/cron.daily`
+- `/etc/cron.weekly`
+- ...
 
-🚧 README, LICENSE 🚧
+What actually runs them is usually a [run-parts⁸](https://manpages.ubuntu.com/manpages/focal/en/man8/run-parts.8.html).  
+But it would be good to know if something has failed, right?  
+Because if we don't know, we might as well just not run our tasks at all.
+
+Now there's a simple way to know! Featuring a [run-parts⁸](https://manpages.ubuntu.com/manpages/focal/en/man8/run-parts.8.html) replacement with a beautiful TUI.
+
+## Features
+- Active job monitoring.
+- Simple file oriented design with a human-readable format.
+- Parallel execution.
+- Freedom to choose your own front-end for monitoring.
 
 ## Usage
 This projects comes with two binaries:
