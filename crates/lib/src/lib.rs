@@ -104,9 +104,7 @@ impl State {
                         current = Some((p, p_time));
                     }
                 },
-                Err(io) if io.kind() == ErrorKind::NotFound => {
-                    errors.push(Error::NotFound(p));
-                },
+                Err(io) if io.kind() == ErrorKind::NotFound => {},
                 Err(io) => {
                     errors.push(Error::Metadata { path: p.clone(), io });
                 },
