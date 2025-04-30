@@ -6,10 +6,10 @@ repository = "https://github.com/Elvyria/run-stars"
 edition = "2021"
 
 [dependencies]
-futures-lite = "2.3.0"
+futures-lite = "2.6.0"
 inotify = { path = "../inotify" }
-jiff = "0.1.3"
-libc = "0.2.158"
+jiff = "0.2"
+libc = "0.2.172"
 memchr = "2.7.4"
-thiserror = "1.0.63"
+thiserror = "1.0.69"
 xdg = { path = "../xdg" }

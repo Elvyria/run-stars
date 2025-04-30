@@ -5,4 +5,4 @@ repository = "https://github.com/Elvyria/run-stars"
 edition = "2021"
 
 [dependencies]
-rustix = { version = "0.38.34", features = ["process"] }
+rustix = { version = "0.38.44", features = ["process"] }
