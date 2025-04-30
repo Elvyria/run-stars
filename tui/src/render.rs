@@ -132,7 +132,7 @@ fn render_task_table(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
         row.fg(theme::COLOR_FOREGROUND).height(1)
     });
 
-    const SELECTION_SYMBOL: &'static str = "• ";
+    const SELECTION_SYMBOL: &str = "• ";
 
     let border = Block::bordered()
         .border_type(BorderType::Rounded)
@@ -353,7 +353,7 @@ impl TaskTable {
         self.state.select(Some(i));
         self.scroll = self.scroll.position(i);
 
-        return i
+        i
     }
 
     pub fn previous(&mut self) -> usize {
@@ -367,7 +367,7 @@ impl TaskTable {
         self.state.select(Some(i));
         self.scroll = self.scroll.position(i);
 
-        return i
+        i
     }
 
     pub fn set_len(&mut self, len: usize) {
@@ -406,7 +406,7 @@ impl StateList {
 
         self.state.select(Some(i));
 
-        return i
+        i
     }
 
     pub fn previous(&mut self) -> usize {
@@ -419,7 +419,7 @@ impl StateList {
 
         self.state.select(Some(i));
 
-        return i
+        i
     }
 
     #[inline]

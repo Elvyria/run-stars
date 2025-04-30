@@ -62,12 +62,9 @@ impl State {
     }
 
     pub fn sub(&mut self, other: &State) {
-        // SAFETY: right shifting bool by bool is safe (0x01 >> 0x01, 0x01 >> 0x00)
-        unsafe {
-            self.persistent = std::mem::transmute::<u8, bool>(self.persistent as u8 >> other.persistent as u8);
-            self.runtime    = std::mem::transmute::<u8, bool>(self.runtime    as u8 >> other.runtime    as u8);
-            self.running    = std::mem::transmute::<u8, bool>(self.running    as u8 >> other.running    as u8);
-        }
+        self.persistent = self.persistent as u8 >> other.persistent as u8 != 0;
+        self.runtime    = self.runtime    as u8 >> other.runtime    as u8 != 0;
+        self.running    = self.running    as u8 >> other.running    as u8 != 0;
     }
 
     pub fn exists(&self) -> bool {
@@ -98,7 +95,7 @@ impl State {
                Ok(meta) if meta.is_file() => {
                     let p_time = meta.modified().expect("modified field must be available to decide which state to read");
 
-                    if current.as_ref().map_or(true, |(_, current_time)| *current_time < p_time) {
+                    if current.as_ref().is_none_or(|(_, current_time)| *current_time < p_time) {
                         current = Some((p, p_time));
                     }
                 },
@@ -198,7 +195,7 @@ pub fn states() -> Result<Vec<State>, Error> {
     fn list_files(p: impl AsRef<Path>) -> Result<impl Iterator<Item = DirEntry>, Error> {
         let p = p.as_ref();
 
-        Ok(std::fs::read_dir(&p)
+        Ok(std::fs::read_dir(p)
             .map_err(|io| Error::ListDir { path: p.to_owned(), io })?
             .flatten()
             .filter(|f| f.file_type().as_ref().is_ok_and(FileType::is_file)))

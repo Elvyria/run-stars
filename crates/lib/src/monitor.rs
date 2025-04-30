@@ -32,8 +32,6 @@ pub fn monitor() -> io::Result<Map<EventStream<[u8; 512]>, impl FnMut(io::Result
         }
     };
 
-    let mask_err_msg = "watch mask doesn't include flags for directories";
-
     let stream = inotify.into_event_stream([0; 512])?.map(move |event| {
         let event = event.unwrap();
         let kind = which(event.wd);

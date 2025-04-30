@@ -165,7 +165,7 @@ fn write_persistant_state(b: &[u8], target: impl AsRef<Path>) -> Result<(), Erro
     let mut state = File::create(&state_path)
         .map_err(|io| FileError::CreatePersistant { path: state_path.clone(), io })?;
 
-    state.write_all(&b)
+    state.write_all(b)
         .map_err(|io| FileError::WritePersistant { path: state_path.clone(), io })?;
 
     state.sync_all()

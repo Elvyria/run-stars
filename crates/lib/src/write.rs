@@ -6,14 +6,14 @@ pub fn write(mut w: impl Write, buffer: &mut Vec<u8>, tasks: &[Task]) -> Result<
     buffer.clear();
 
     for task in tasks.iter() {
-        write!(buffer, "{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}\n",
+        writeln!(buffer, "{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}",
             task.status,
             task.code,
             task.time,
             task.path.to_string_lossy())?;
     }
 
-    w.write(&buffer)?;
+    w.write_all(buffer)?;
     w.flush()
 }
 

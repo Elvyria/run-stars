@@ -7,7 +7,7 @@ use memchr::memchr_iter;
 
 use crate::error::Error;
 
-const DIR_NAME: &'static str = "run_stars";
+const DIR_NAME: &str = "run_stars";
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum Kind {
@@ -52,11 +52,11 @@ fn init_dir(p: impl AsRef<Path>) -> Result<PathBuf, Error> {
 
             match io.kind() {
                 std::io::ErrorKind::AlreadyExists => Ok(state),
-                _ => Err(Error::CreateLocation { path: state.clone(), io}.into()),
+                _ => Err(Error::CreateLocation { path: state.clone(), io}),
             }
         }
-        Ok(_) => Err(Error::NotDirectory(p.to_owned()).into()),
-        Err(io) => Err(Error::AccessLocation { path: p.to_owned(), io }.into()),
+        Ok(_) => Err(Error::NotDirectory(p.to_owned())),
+        Err(io) => Err(Error::AccessLocation { path: p.to_owned(), io }),
     }
 }
 
