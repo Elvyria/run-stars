@@ -128,13 +128,40 @@ pub enum Directory {
 pub struct StateChange {
     pub status: Status,
     pub code:   u8,
-    pub time:   Timestamp,
+    pub time:   Time,
+}
+
+pub struct Time {
+    pub ts:   Timestamp,
+    pub kind: TimeKind,
+}
+
+impl Time {
+    pub fn start(ts: Timestamp) -> Self {
+        Time { ts, kind: TimeKind::Start }
+    }
+
+    pub fn finish() -> Self {
+        Time { ts: Timestamp::now(), kind: TimeKind::Finish }
+    }
+
+    pub fn both(ts: Timestamp) -> Self {
+        Time { ts, kind: TimeKind::Both }
+    }
+}
+
+#[derive(PartialEq)]
+pub enum TimeKind {
+    Start,
+    Finish,
+    Both,
 }
 
 pub struct Task {
     pub status: Status,
     pub code:   u8,
-    pub time:   Timestamp,
+    pub start:  Timestamp,
+    pub finish: Timestamp,
     pub path:   PathBuf,
 }
 
@@ -143,7 +170,8 @@ impl Task {
         Self {
             status: Status::Waiting,
             code:   0,
-            time:   Timestamp::now(),
+            start:  Timestamp::now(),
+            finish: Timestamp::now(),
             path:   p,
         }
     }
@@ -153,6 +181,7 @@ impl Task {
 pub enum Status {
     Success,
     Failure,
+    Permission,
     Running,
     Waiting,
     Unknown,
@@ -167,6 +196,7 @@ impl Status {
                 true => Ok(Status::Running),
                 false => Ok(Status::Unknown),
             },
+            "X" => Ok(Status::Permission),
             "W" => Ok(Status::Waiting),
             "U" => Ok(Status::Unknown),
             _   => Err(ParseError::Status(s.to_owned())),
@@ -180,11 +210,12 @@ impl Display for Status {
         use std::fmt::Write;
 
         let c = match self {
-            Status::Success => 'S',
-            Status::Failure => 'F',
-            Status::Running => 'R',
-            Status::Waiting => 'W',
-            Status::Unknown => 'U',
+            Status::Success    => 'S',
+            Status::Failure    => 'F',
+            Status::Permission => 'X',
+            Status::Running    => 'R',
+            Status::Waiting    => 'W',
+            Status::Unknown    => 'U',
         };
 
         f.write_char(c)
@@ -281,13 +312,15 @@ fn parse(p: impl AsRef<Path>) -> Result<Vec<Task>, Error> {
 
         let status = parts.next().ok_or_else(malformed_err)?;
         let code = parts.next().ok_or_else(malformed_err)?;
-        let time = parts.next().ok_or_else(malformed_err)?;
+        let start = parts.next().ok_or_else(malformed_err)?;
+        let finish = parts.next().ok_or_else(malformed_err)?;
 
         // SAFETY: memchr_iter returns values inside of a slice 
         let s_status = unsafe { l.get_unchecked(..status) };
         let s_code   = unsafe { l.get_unchecked(status + 1..code) };
-        let s_time   = unsafe { l.get_unchecked(code + 1..time) };
-        let s_path   = unsafe { l.get_unchecked(time + 1..) };
+        let s_start  = unsafe { l.get_unchecked(code + 1..start) };
+        let s_finish = unsafe { l.get_unchecked(start + 1..finish) };
+        let s_path   = unsafe { l.get_unchecked(finish + 1..) };
 
         let parse_err = |e: ParseError| Error::Parse {
             e,
@@ -298,10 +331,11 @@ fn parse(p: impl AsRef<Path>) -> Result<Vec<Task>, Error> {
 
         let status = Status::from_str(s_status, running).map_err(|_| parse_err(ParseError::Status(s_status.to_owned())))?;
         let code = u8::from_str(s_code).map_err(|_| parse_err(ParseError::Code(s_code.to_owned())))?;
-        let time = Timestamp::from_str(s_time).map_err(|_| parse_err(ParseError::Timestamp(s_time.to_owned())))?;
+        let start = Timestamp::from_str(s_start).map_err(|_| parse_err(ParseError::Timestamp(s_start.to_owned())))?;
+        let finish = Timestamp::from_str(s_finish).map_err(|_| parse_err(ParseError::Timestamp(s_finish.to_owned())))?;
         let path = PathBuf::from_str(s_path).map_err(|_| parse_err(ParseError::Path(s_path.to_owned())))?;
 
-        v.push(Task { status, code, time, path });
+        v.push(Task { status, code, start, finish, path });
     }
 
     Ok(v)

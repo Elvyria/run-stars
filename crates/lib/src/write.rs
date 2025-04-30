@@ -1,15 +1,16 @@
 use std::{fs::File, io::Write, os::{fd::AsRawFd, unix::fs::FileExt}};
-
 use crate::{Task, SPLIT_CHAR};
 
 pub fn write(mut w: impl Write, buffer: &mut Vec<u8>, tasks: &[Task]) -> Result<(), std::io::Error> {
     buffer.clear();
 
     for task in tasks.iter() {
-        writeln!(buffer, "{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}",
+        // TODO: Clean this up, CSV crate is not worth it, but this is horrific
+        writeln!(buffer, "{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}",
             task.status,
             task.code,
-            task.time,
+            task.start,
+            task.finish,
             task.path.to_string_lossy())?;
     }
 

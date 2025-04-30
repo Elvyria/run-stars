@@ -15,7 +15,7 @@ use futures_lite::future;
 
 use jiff::Timestamp;
 
-use run_stars_lib::{Status, StateChange, Task};
+use run_stars_lib::{StateChange, Status, Task, Time, TimeKind};
 use run_stars_lib::write::StateFile;
 
 use error::{Error, FileError};
@@ -92,18 +92,28 @@ fn main() -> Result<(), Error> {
                 eprintln!("{}: {e}", &p.to_string_lossy());
             };
 
+            let ts = Timestamp::now();
+
             let c = Command::new(&p)
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .spawn()
                 .inspect_err(handle_error);
 
-            let (status, code) = match c {
-                Ok(_)  => (Status::Running, 0),
-                Err(_) => (Status::Failure, 1),
+            let (status, code, kind) = match c {
+                Ok(_)  => (Status::Running, 0, TimeKind::Start),
+                Err(ref e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                    (Status::Permission, 74, TimeKind::Both)
+                },
+                Err(_) => (Status::Failure, 1, TimeKind::Both),
             };
 
-            let state = StateChange { status, code, time: Timestamp::now() };
+            let state = StateChange {
+                status,
+                code,
+                time: Time { kind, ts }
+            };
+
             s.send_blocking((i, state)).unwrap();
 
             let Ok(mut child) = c else { return };
@@ -117,7 +127,7 @@ fn main() -> Result<(), Error> {
                 Err(_) => (Status::Failure, 1),
             };
 
-            let state = StateChange { status, code: code as u8, time: Timestamp::now() };
+            let state = StateChange { status, code: code as u8, time: Time::finish() };
             s.send_blocking((i, state)).unwrap();
         }
     });
@@ -131,7 +141,8 @@ fn main() -> Result<(), Error> {
 
                 let t = &mut tasks[i];
                 t.status = state.status;
-                t.time = state.time;
+                if state.time.kind != TimeKind::Start  { t.finish = state.time.ts; }
+                if state.time.kind != TimeKind::Finish { t.start  = state.time.ts; }
 
                 msg = match r.try_recv() {
                     Ok(msg) => msg,

@@ -60,13 +60,18 @@ pub enum Action {
 
 impl From<Task> for TaskEntry {
     fn from(task: Task) -> Self {
+        let time = match task.status {
+            Status::Success | Status::Failure => task.finish,
+            _ => task.start
+        };
+
         TaskEntry {
             status: task.status,
             path:   unsafe {
                 let v = task.path.into_os_string().into_vec();
                 String::from_utf8_unchecked(v)
             },
-            time: task.time.to_zoned(TimeZone::system()).strftime("%a %b %e %I:%M:%S %p").to_string(),
+            time: time.to_zoned(TimeZone::system()).strftime("%a %b %e %I:%M:%S %p").to_string(),
             spinner: Spinner::new(spinner::BRAILE),
         }
     }

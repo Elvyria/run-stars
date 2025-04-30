@@ -17,13 +17,15 @@ mod theme {
     pub const COLOR_STATE_SUCCESS: Color = tailwind::GREEN.c400;
     pub const COLOR_STATE_FAILURE: Color = tailwind::ROSE.c500;
     pub const COLOR_STATE_RUNNING: Color = tailwind::YELLOW.c400;
+    pub const COLOR_STATE_PERMISSION: Color = tailwind::GRAY.c500;
+    pub const COLOR_STATE_UNKNOWN: Color = tailwind::GRAY.c500;
 
     pub const COLOR_BLOCK_TITLE: Color = tailwind::GRAY.c500;
     pub const COLOR_BORDER: Color = tailwind::GRAY.c800;
     pub const COLOR_ERROR: Color = tailwind::LIME.c700;
     pub const COLOR_FOREGROUND: Color = tailwind::SLATE.c200;
     pub const COLOR_RUNNING: Color = tailwind::INDIGO.c500;
-    pub const COLOR_SELECTION: Color = tailwind::GRAY.c600;
+    pub const COLOR_SELECTION: Color = tailwind::PURPLE.c800;
     pub const COLOR_SELECTION_FOCUSED: Color = tailwind::PURPLE.c500;
 }
 
@@ -96,9 +98,10 @@ fn status(entry: &TaskEntry) -> Span {
     match entry.status {
         Status::Success => "✓".fg(theme::COLOR_STATE_SUCCESS),
         Status::Failure => "✗".fg(theme::COLOR_STATE_FAILURE),
+        Status::Permission => "✗".fg(theme::COLOR_STATE_PERMISSION),
         Status::Running => entry.spinner.current().fg(theme::COLOR_STATE_RUNNING),
         Status::Waiting => Span::raw("⧖"),
-        Status::Unknown => "?".fg(theme::COLOR_BLOCK_TITLE),
+        Status::Unknown => "?".fg(theme::COLOR_STATE_UNKNOWN),
     }
 }
 

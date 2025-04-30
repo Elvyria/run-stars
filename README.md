@@ -74,25 +74,26 @@ ${XDG_STATE_HOME:-$HOME/.local/state}/run_stars/...
 ## Format
 Runner reports the state of an each running task in a simple, human-readable fashion.
 ```csv
-S,0,2024-09-06T03:33:08.612671265Z,/etc/cron.weekly/cleanup
+S,0,2024-09-06T03:33:08.612671265Z,2025-04-30T05:39:34.49519484Z,/etc/cron.weekly/cleanup
 ```
 
 Or
 
 ```csv
-[S],[C],[T],[P]
+[S],[C],[TS],[TF],[P]
 ```
 #### [S] : A single ASCII character that represents the state of a task
-- `S` - Success
-- `F` - Failure
-- `R` - Running
-- `W` - Waiting
-- `U` - Unknown
+- `S` - Success (Task has exited with code 0)
+- `F` - Failure (Task has exited with a non 0 code)
+- `R` - Running (Task is currently running)
+- `X` - Permission (Not permitted to run the task `chmod -x`)
+- `W` - Waiting (Runner is waiting for a condition to start the task)
+- `U` - Unknown (Runner was shutdown abnormaly and status of the task is unknown)
 
 #### [C] : An exit code or 0 if the task is still running
 - `0-255`
 
-#### [T] : A timestamp in ISO 8601 at the moment when task was started or exited
+#### [TS]/[TF] : A timestamp in ISO 8601 at the moment when task was started and finished
 - `2024-09-06T03:33:08.612671265Z`
 
 #### [P] : An absolute path to the executable
