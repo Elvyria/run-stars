@@ -36,36 +36,27 @@ pub fn monitor() -> io::Result<Map<EventStream<[u8; 512]>, impl FnMut(io::Result
 
     let stream = inotify.into_event_stream([0; 512])?.map(move |event| {
         let event = event.unwrap();
+        let kind = which(event.wd);
+        let file_name = event.name.unwrap_or_else(|| match kind {
+            Kind::Runtime => runtime_dir.clone().into(),
+            Kind::Persistent => persistent_dir.clone().into(),
+        });
 
-        return match event.mask {
-            EventMask::MODIFY => StateEvent {
-                event: Event::Modified,
-                kind: which(event.wd),
-                file_name: event.name.expect(mask_err_msg),
-            },
-            EventMask::OPEN | EventMask::CREATE | EventMask::MOVED_TO => StateEvent {
-                event: Event::New,
-                kind: which(event.wd),
-                file_name: event.name.expect(mask_err_msg),
-            },
-            EventMask::DELETE | EventMask::MOVED_FROM => StateEvent {
-                event: Event::Removed,
-                kind: which(event.wd),
-                file_name: event.name.expect(mask_err_msg),
-            },
-            EventMask::CLOSE_WRITE => StateEvent {
-                event: Event::Closed,
-                kind: which(event.wd),
-                file_name: event.name.expect(mask_err_msg),
-            },
+        let event = match event.mask {
+            EventMask::MODIFY => Event::Modified,
+            EventMask::CREATE | EventMask::MOVED_TO => Event::New,
+            EventMask::DELETE | EventMask::MOVED_FROM => Event::Removed,
+            EventMask::CLOSE_WRITE => Event::Closed,
             EventMask::Q_OVERFLOW => {
                 panic!("buffer for inotify events is not big enough to handle all events")
-            }
-            _ => StateEvent {
-                event: Event::Unknown,
-                kind: which(event.wd),
-                file_name: event.name.expect(mask_err_msg),
             },
+            _ => Event::Unknown,
+        };
+
+        StateEvent {
+            event,
+            kind,
+            file_name
         }
     });
 
