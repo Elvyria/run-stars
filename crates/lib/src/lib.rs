@@ -60,7 +60,6 @@ impl State {
     pub fn add(&mut self, other: &State) {
         self.persistent |= other.persistent;
         self.runtime    |= other.runtime;
-        self.running    |= other.running;
     }
 
     pub fn sub(&mut self, other: &State) {
@@ -163,6 +162,23 @@ pub enum Status {
     Unknown,
 }
 
+impl Status {
+    fn from_str(s: &str, running: bool) -> Result<Self, ParseError> {
+        match s {
+            "S" => Ok(Status::Success),
+            "F" => Ok(Status::Failure),
+            "R" => match running {
+                true => Ok(Status::Running),
+                false => Ok(Status::Unknown),
+            },
+            "W" => Ok(Status::Waiting),
+            "U" => Ok(Status::Unknown),
+            _   => Err(ParseError::Status(s.to_owned())),
+        }
+
+    }
+}
+
 impl Display for Status {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use std::fmt::Write;
@@ -176,21 +192,6 @@ impl Display for Status {
         };
 
         f.write_char(c)
-    }
-}
-
-impl FromStr for Status {
-    type Err = ParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "S" => Ok(Status::Success),
-            "F" => Ok(Status::Failure),
-            "R" => Ok(Status::Running),
-            "W" => Ok(Status::Waiting),
-            "U" => Ok(Status::Unknown),
-            _   => Err(ParseError::Status(s.to_owned())),
-        }
     }
 }
 
@@ -215,7 +216,7 @@ pub fn states() -> Result<Vec<State>, Error> {
                     state.running = running;
                     Some(state)
                 },
-                Err(io) if io.kind() == std::io::ErrorKind::NotFound => None,
+                Err(Error::NotFound(_)) => None,
                 Err(_) => Some(state),
             }
         })
@@ -235,10 +236,10 @@ pub fn states() -> Result<Vec<State>, Error> {
     Ok(states)
 }
 
-fn is_locked(p: impl AsRef<Path>) -> Result<bool, std::io::Error> {
+fn is_locked(p: impl AsRef<Path>) -> Result<bool, Error> {
     let p = p.as_ref();
-    let fd = File::open(p)?;
-            
+    let fd = File::open(p).map_err(|io| Error::Open { path: p.to_owned(), io })?;
+
     let mut lock = libc::flock {
         l_type:   libc::F_WRLCK as _,
         l_whence: 0,
@@ -271,6 +272,7 @@ fn parse(p: impl AsRef<Path>) -> Result<Vec<Task>, Error> {
     }
 
     let fd = File::open(p).map_err(|io| Error::Open { path: p.to_owned(), io })?;
+    let running = is_locked(p)?;
     let reader = BufReader::new(fd);
 
     let mut v = Vec::new();
@@ -298,7 +300,7 @@ fn parse(p: impl AsRef<Path>) -> Result<Vec<Task>, Error> {
             path: p.to_owned()
         };
 
-        let status = Status::from_str(s_status).map_err(|_| parse_err(ParseError::Status(s_status.to_owned())))?;
+        let status = Status::from_str(s_status, running).map_err(|_| parse_err(ParseError::Status(s_status.to_owned())))?;
         let code = u8::from_str(s_code).map_err(|_| parse_err(ParseError::Code(s_code.to_owned())))?;
         let time = Timestamp::from_str(s_time).map_err(|_| parse_err(ParseError::Timestamp(s_time.to_owned())))?;
         let path = PathBuf::from_str(s_path).map_err(|_| parse_err(ParseError::Path(s_path.to_owned())))?;

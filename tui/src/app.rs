@@ -138,48 +138,43 @@ impl App {
         Ok(app)
     }
 
-    fn add_state_unchecked(&mut self, state: State) {
+    fn add_state(&mut self, state: State) {
         let existing = self.state_entries.iter_mut()
             .find(|entry| entry.state == state);
 
         match existing {
-            Some(entry) => entry.state.add(&state),
+            Some(entry) => {
+                entry.state.add(&state);
+
+                if self.is_selected_state(&state) {
+                    self.refresh_tasks();
+                };
+            },
             None => {
                 // TODO: Sort and make sure that selection wasn't moved
                 self.state_entries.push(state.into());
                 // self.state_entries.sort_by(|a, b| a.file_name.(b.file_name));
-                self.ui.state_list.len += 1;
+                self.ui.state_list.push();
             },
         } 
     }
 
-    fn remove_state_unchecked(&mut self, state: State) {
-        let existing = self.state_entries.iter_mut()
-            .find_position(|entry| entry.state == state);
+    fn remove_state(&mut self, state: State) {
+        let Some((i, entry)) = self.state_entries.iter_mut()
+            .find_position(|entry| entry.state == state) else { return };
 
-        if let Some((i, entry)) = existing {
-            entry.state.sub(&state);
+        entry.state.sub(&state);
 
-            match entry.state.exists() {
-                true => if state.running {
-                    self.task_entries.iter_mut().for_each(|e| {
-                        if e.status == Status::Running {
-                            e.status = Status::Unknown
-                        }
-                    })
-                }
-                false => {
-                    self.state_entries.remove(i);
-                    self.ui.state_list.len -= 1;
+        if !entry.state.exists() {
+            self.state_entries.remove(i);
+            self.ui.state_list.pop();
 
-                    if i == self.state_entries.len() {
-                        self.ui.state_list.previous();
-                    }
-
-                    self.refresh_tasks();
-                }
+            if i == self.state_entries.len() {
+                self.ui.state_list.previous();
             }
-        } 
+        }
+
+        self.refresh_tasks();
     }
 
     pub fn selected_state(&self) -> Option<&StateEntry> {
@@ -197,18 +192,9 @@ impl App {
             return
         };
 
-        let running = entry.state.runtime && entry.state.running;
-
         match entry.state.tasks() {
             Ok((tasks, errors)) => {
-                self.task_entries.extend(tasks.into_iter().map(|mut task| {
-                    if task.status == Status::Running && !running  {
-                        task.status = Status::Unknown;
-                    }
-
-                    TaskEntry::from(task)
-                }));
-
+                self.task_entries.extend(tasks.into_iter().map(TaskEntry::from));
                 self.set_error(errors.last(), Severity::Low);
             },
             Err(errors) => {
@@ -261,8 +247,8 @@ pub async fn run<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Re
         match action {
             Action::Tick => {},
             Action::RefreshTasks => app.refresh_tasks(),
-            Action::AddState(state) => app.add_state_unchecked(state),
-            Action::RemoveState(state) => app.remove_state_unchecked(state),
+            Action::AddState(state) => app.add_state(state),
+            Action::RemoveState(state) => app.remove_state(state),
             Action::Quit => break,
         }
 

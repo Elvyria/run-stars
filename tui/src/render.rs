@@ -426,4 +426,12 @@ impl StateList {
     pub fn selected(&self) -> usize {
         self.state.selected().unwrap_or(0)
     }
+
+    pub fn push(&mut self) {
+        self.len += 1;
+    }
+
+    pub fn pop(&mut self) {
+        self.len -= 1;
+    }
 }
