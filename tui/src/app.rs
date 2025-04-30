@@ -1,5 +1,4 @@
 use std::io;
-use std::ffi::OsStr;
 use std::fmt::Display;
 use std::os::unix::ffi::OsStringExt;
 
@@ -187,8 +186,8 @@ impl App {
         self.state_entries.get(self.ui.state_list.selected())
     }
 
-    pub fn is_selected_state(&self, file_name: &OsStr) -> bool {
-        self.selected_state().is_some_and(|entry| entry.state.file_name == file_name)
+    pub fn is_selected_state(&self, state: &State) -> bool {
+        self.selected_state().is_some_and(|entry| entry.state.file_name == state.file_name)
     }
 
     fn refresh_tasks(&mut self) {

@@ -19,7 +19,7 @@ impl Handler for App {
 
         match io_event.event {
             monitor::Event::Modified => {
-                match self.is_selected_state(state.file_name.as_os_str()) {
+                match self.is_selected_state(&state) {
                     true  => Action::RefreshTasks,
                     false => Action::Tick,
                 }
