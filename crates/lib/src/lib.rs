@@ -3,7 +3,6 @@ pub mod path;
 pub mod write;
 pub mod monitor;
 
-use core::panic;
 use std::ffi::OsString;
 use std::fmt::Display;
 use std::fs::{DirEntry, File, FileType};
@@ -256,7 +255,7 @@ fn is_locked(p: impl AsRef<Path>) -> Result<bool, Error> {
                 path: p.to_path_buf(),
             };
 
-            panic!("{e:?}");
+            unreachable!("{e:?}");
         },
         _  => Ok(lock.l_type != libc::F_UNLCK as i16),
     }
