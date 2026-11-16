@@ -54,24 +54,28 @@ fn render_state_list(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
     }
 
     let entries = app.state_entries.iter()
-        .map(|f| match f.state.running {
-            true => {
-                let mut text = Text::from(app.ui.state_list.spinner.current().fg(theme::COLOR_RUNNING));
+        .map(|f| {
+            let name = f.name.rsplit('/').next().unwrap_or(&f.name);
 
-                text.push_span(Span::raw(" "));
-                text.push_span(Span::raw(&f.name));
+            match f.state.running {
+                true => {
+                    let mut text = Text::from(app.ui.state_list.spinner.current().fg(theme::COLOR_RUNNING));
 
-                if tick {
-                    app.ui.state_list.spinner.next();
+                    text.push_span(Span::raw("  "));
+                    text.push_span(Span::raw(name));
+
+                    if tick {
+                        app.ui.state_list.spinner.next();
+                    }
+
+                    ListItem::new(text)
                 }
-
-                ListItem::new(text)
-            }
-            false => ListItem::new(f.name.as_str()),
-        });
+                false => ListItem::new(name)
+            }}
+    );
 
     let border = Block::bordered()
-        .padding(Padding::uniform(1))
+        .padding(Padding { left: 3, right: 3, top: 1, bottom: 1 })
         .border_type(BorderType::Rounded).fg(theme::COLOR_BORDER);
 
     let l = List::new(entries)
@@ -84,7 +88,7 @@ fn render_state_list(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
 }
 
 fn table_header() -> Row<'static> {
-    ["", "Start", "Finish", "Path", "Message"]
+    ["", "   Executable", "   Start", "   Finish", "󰍦   Message"]
         .into_iter()
         .map(Cell::from)
         .collect::<Row>()
@@ -128,9 +132,9 @@ fn render_task_table(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
 
         let row = Row::new([
             Cell::from(status(entry)),
+            Cell::from(entry.path.as_str()),
             Cell::from(entry.start.as_str()),
             Cell::from(entry.finish.as_str()),
-            Cell::from(entry.path.as_str()),
             Cell::from(entry.output.as_str()),
         ]);
 
@@ -148,11 +152,12 @@ fn render_task_table(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
 
     let t = Table::new(entries, [
         Constraint::Length(2),
-        Constraint::Length(("Tue Jul 30 03:14:39 AM".len() + 1) as u16),
-        Constraint::Length(("Tue Jul 30 03:14:39 AM".len() + 1) as u16),
-        Constraint::Length(50),
+        Constraint::Length(27),
+        Constraint::Length(("03:14・10-11-2021".len() + 1) as u16),
+        Constraint::Length(("03:14・10-11-2021".len() + 1) as u16),
         Constraint::Fill(1),
     ])
+    .column_spacing(2)
     .highlight_style(style_selected)
     .highlight_symbol(SELECTION_SYMBOL)
     .highlight_spacing(HighlightSpacing::Always)

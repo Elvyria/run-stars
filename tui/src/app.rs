@@ -65,7 +65,7 @@ impl From<Task> for TaskEntry {
         TaskEntry {
             status: task.status,
             path:   unsafe {
-                let v = task.path.into_os_string().into_vec();
+                let v = task.path.file_name().unwrap().to_os_string().into_vec();
                 String::from_utf8_unchecked(v)
             },
             start: task.start.to_zoned(TimeZone::system()).strftime("%d‐%m‐%Y・%H:%M").to_string(),
