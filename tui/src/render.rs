@@ -323,7 +323,7 @@ impl UI {
                 self.task_table.next();
             }
         }
-        
+
         Action::Tick
     }
 }

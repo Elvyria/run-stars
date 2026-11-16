@@ -75,7 +75,8 @@ impl From<Task> for TaskEntry {
                     '\n' | '\r' | '\t' => Some(' '),
                     c if c.is_control() => None,
                     c => Some(c),
-            }),
+            })
+            .collect(),
             spinner: Spinner::new(spinner::BRAILE),
         }
     }
@@ -116,7 +117,7 @@ impl App {
                 name: state.path().to_string_lossy().to_string(),
                 state,
             })
-            .collect();
+        .collect();
 
         state_entries.sort_by(|a, b| a.name.partial_cmp(&b.name).unwrap());
 
