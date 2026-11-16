@@ -1,8 +1,7 @@
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Flex, Layout, Margin, Rect};
 use ratatui::style::{Style, Stylize};
-use ratatui::text::{Span, Text};
-use ratatui::widgets::block::{Position, Title};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, BorderType, Cell, HighlightSpacing, List, ListItem, ListState, Padding, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table, TableState, Wrap};
 
 use run_stars_lib::Status;
@@ -34,7 +33,7 @@ pub fn render(f: &mut Frame, app: &mut App, tick: bool) {
         Constraint::Percentage(15),
         Constraint::Percentage(85),
     ])
-    .split(f.size());
+    .split(f.area());
 
     let task_panel_layout = Layout::vertical([ Constraint::Min(5), ])
     .split(outer_layout[1]);
@@ -110,13 +109,11 @@ fn status(entry: &TaskEntry) -> Span<'_> {
 }
 
 fn render_task_table(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
-    let key_legend = Title::from("(Esc) quit | (↑) move up | (↓) move down")
-        .alignment(Alignment::Right)
-        .position(Position::Bottom);
+    let key_legend = Line::from("(Esc) quit | (↑) move up | (↓) move down")
+        .alignment(Alignment::Right);
 
-    let state_name = Title::from(app.selected_state().map(|entry| entry.name.clone()).unwrap_or_default())
-        .alignment(Alignment::Left)
-        .position(Position::Bottom);
+    let state_name = Line::from(app.selected_state().map(|entry| entry.name.clone()).unwrap_or_default())
+        .alignment(Alignment::Left);
 
     let mut style_selected = Style::new()
         .fg(theme::COLOR_SELECTION);
@@ -146,8 +143,8 @@ fn render_task_table(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
     let border = Block::bordered()
         .border_type(BorderType::Rounded)
         .fg(theme::COLOR_BORDER)
-        .title(key_legend)
-        .title(state_name)
+        .title_bottom(key_legend)
+        .title_bottom(state_name)
         .title_style(Style::new().fg(theme::COLOR_BLOCK_TITLE));
 
     let t = Table::new(entries, [
@@ -158,7 +155,7 @@ fn render_task_table(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
         Constraint::Fill(1),
     ])
     .column_spacing(2)
-    .highlight_style(style_selected)
+    .row_highlight_style(style_selected)
     .highlight_symbol(SELECTION_SYMBOL)
     .highlight_spacing(HighlightSpacing::Always)
     .header(table_header())
@@ -191,15 +188,14 @@ fn render_error(f: &mut Frame, area: Rect, e: &Option<ErrorEntry>) {
 }
 
 fn render_error_block(f: &mut Frame, area: Rect, message: &str) {
-    let title: Title = Title::from("Error")
-        .alignment(Alignment::Center)
-        .position(Position::Top);
+    let title: Line = Line::from("Error")
+        .alignment(Alignment::Center);
 
     let border = Block::bordered()
         .border_type(BorderType::Rounded)
         .fg(theme::COLOR_BORDER)
         .padding(Padding::uniform(2))
-        .title(title)
+        .title_top(title)
         .title_style(Style::new().fg(theme::COLOR_BLOCK_TITLE));
 
     let p = Paragraph::new(message)
@@ -218,15 +214,14 @@ fn render_error_block(f: &mut Frame, area: Rect, message: &str) {
 }
 
 fn render_error_notice(f: &mut Frame, area: Rect, message: &str) {
-    let title: Title = Title::from("Error")
-        .alignment(Alignment::Center)
-        .position(Position::Top);
+    let title: Line = Line::from("Error")
+        .alignment(Alignment::Center);
 
     let border = Block::bordered()
         .border_type(BorderType::Rounded)
         .fg(theme::COLOR_BORDER)
         .padding(Padding::new(2, 2, 1, 1))
-        .title(title)
+        .title_top(title)
         .title_style(Style::new().fg(theme::COLOR_BLOCK_TITLE));
 
     let p = Paragraph::new(message)

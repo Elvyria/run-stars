@@ -68,8 +68,8 @@ impl From<Task> for TaskEntry {
                 let v = task.path.file_name().unwrap().to_os_string().into_vec();
                 String::from_utf8_unchecked(v)
             },
-            start: task.start.to_zoned(TimeZone::system()).strftime("%d‐%m‐%Y・%H:%M").to_string(),
-            finish: task.finish.to_zoned(TimeZone::system()).strftime("%d‐%m‐%Y・%H:%M").to_string(),
+            start: task.start.to_zoned_datetime(TimeZone::system()).strftime("%d‐%m‐%Y・%H:%M").to_string(),
+            finish: task.finish.to_zoned_datetime(TimeZone::system()).strftime("%d‐%m‐%Y・%H:%M").to_string(),
             output: task.output.replace("\\n", " ").chars()
                 .filter_map(|c| match c {
                     '\n' | '\r' | '\t' => Some(' '),
@@ -229,7 +229,7 @@ pub enum Event<FS, UI> {
     UI(UI),
 }
 
-pub async fn run<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+pub async fn run<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> where io::Error: From<B::Error> {
     use futures_time::prelude::*;
 
     let mut ui_events = crossterm::event::EventStream::new();

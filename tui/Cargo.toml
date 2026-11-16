@@ -6,15 +6,15 @@ repository = "https://github.com/Elvyria/run-stars"
 edition = "2021"
 
 [dependencies]
-argh = "0.1.13"
-async-channel = "2.3.1"
-futures-core = "0.3.31"
-futures-lite = "2.6.0"
-futures-time = "3.0.0"
-itertools = "0.13.0"
-jiff = "0.2"
-ratatui = "0.27.0"
+argh = "0.1.19"
+async-channel = "2.5.0"
+futures-core = "0.3.34"
+futures-lite = "2.6.1"
+futures-time = "3.1.0"
+itertools = "0.15.0"
+jiff = "1.0"
+ratatui = "0.30.2"
 run-stars-lib = { path = "../crates/lib" }
 xdg = { path = "../crates/xdg" }
-unicode-width = "0.1.14"
-crossterm = { version = "0.28.1", features = ["event-stream"] }
+unicode-width = "0.2.3"
+crossterm = { version = "0.29.0", features = ["event-stream"] }

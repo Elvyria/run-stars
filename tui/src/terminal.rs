@@ -7,11 +7,11 @@ use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 
 pub struct Terminal {
-    tui: ratatui::terminal::Terminal<CrosstermBackend<Stdout>>,
+    tui: ratatui::Terminal<CrosstermBackend<Stdout>>,
 }
 
 impl Deref for Terminal {
-    type Target = ratatui::terminal::Terminal<CrosstermBackend<Stdout>>;
+    type Target = ratatui::Terminal<CrosstermBackend<Stdout>>;
 
     fn deref(&self) -> &Self::Target {
         &self.tui
@@ -30,7 +30,7 @@ impl Terminal {
         let mut stdout = std::io::stdout();
         execute!(stdout, EnterAlternateScreen)?;
         let backend = CrosstermBackend::new(stdout);
-        let tui = ratatui::terminal::Terminal::new(backend).unwrap();
+        let tui = ratatui::Terminal::new(backend).unwrap();
 
         let hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
