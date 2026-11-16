@@ -45,7 +45,9 @@ impl From<State> for StateEntry {
 pub struct TaskEntry {
     pub status:  Status,
     pub path:    String,
-    pub time:    String,
+    pub start:   String,
+    pub finish:  String,
+    pub output:  String,
 
     pub spinner: Spinner,
 }
@@ -60,18 +62,20 @@ pub enum Action {
 
 impl From<Task> for TaskEntry {
     fn from(task: Task) -> Self {
-        let time = match task.status {
-            Status::Success | Status::Failure => task.finish,
-            _ => task.start
-        };
-
         TaskEntry {
             status: task.status,
             path:   unsafe {
                 let v = task.path.into_os_string().into_vec();
                 String::from_utf8_unchecked(v)
             },
-            time: time.to_zoned(TimeZone::system()).strftime("%a %b %e %I:%M:%S %p").to_string(),
+            start: task.start.to_zoned(TimeZone::system()).strftime("%d‐%m‐%Y・%H:%M").to_string(),
+            finish: task.finish.to_zoned(TimeZone::system()).strftime("%d‐%m‐%Y・%H:%M").to_string(),
+            output: task.output.replace("\\n", " ").chars()
+                .filter_map(|c| match c {
+                    '\n' | '\r' | '\t' => Some(' '),
+                    c if c.is_control() => None,
+                    c => Some(c),
+            }),
             spinner: Spinner::new(spinner::BRAILE),
         }
     }

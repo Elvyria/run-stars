@@ -11,7 +11,7 @@ use async_process::Command;
 
 use futures_concurrency::future::FutureExt;
 use futures_concurrency::prelude::{ConcurrentStream, IntoConcurrentStream};
-use futures_lite::future;
+use futures_lite::{future, io::AsyncReadExt};
 
 use jiff::Timestamp;
 
@@ -94,9 +94,30 @@ fn main() -> Result<(), Error> {
 
             let ts = Timestamp::now();
 
+            let mut stdout: Stdio = Stdio::null();
+            let mut stderr: Stdio = Stdio::null();
+            let mut reader = None;
+
+            if let Ok((rx, tx)) = std::io::pipe() {
+                if let Ok(rx) = async_io::Async::new(rx) {
+                    reader = Some(rx);
+                    stderr = tx.try_clone().map(Into::into).unwrap_or(stderr);
+                    stdout = tx.into();
+                }
+            }
+
+            let reader = async move {
+                // TODO: Maybe give an option to limit the output size
+                let mut output = vec![];
+                if let Some(mut rx) = reader {
+                    let _ = rx.read_to_end(&mut output).await;
+                }
+                output
+            };
+
             let c = Command::new(&p)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
+                .stdout(stdout)
+                .stderr(stderr)
                 .spawn()
                 .inspect_err(handle_error);
 
@@ -111,15 +132,15 @@ fn main() -> Result<(), Error> {
             let state = StateChange {
                 status,
                 code,
-                time: Time { kind, ts }
+                time: Time { kind, ts },
+                output: String::new(),
             };
 
             s.send_blocking((i, state)).unwrap();
 
             let Ok(mut child) = c else { return };
 
-            let status = child.status().await
-                .inspect_err(handle_error);
+            let (status, output) = future::zip(child.status(), reader).await;
 
             let (status, code) = match status {
                 Ok(status) if status.success() => (Status::Success, 0),
@@ -127,7 +148,13 @@ fn main() -> Result<(), Error> {
                 Err(_) => (Status::Failure, 1),
             };
 
-            let state = StateChange { status, code: code as u8, time: Time::finish() };
+            let state = StateChange {
+                status,
+                code: code as u8,
+                time: Time::finish(),
+                output: String::from_utf8_lossy(&output).into_owned()
+            };
+
             s.send_blocking((i, state)).unwrap();
         }
     });
@@ -141,6 +168,8 @@ fn main() -> Result<(), Error> {
 
                 let t = &mut tasks[i];
                 t.status = state.status;
+                t.output.push_str(&state.output);
+
                 if state.time.kind != TimeKind::Start  { t.finish = state.time.ts; }
                 if state.time.kind != TimeKind::Finish { t.start  = state.time.ts; }
 

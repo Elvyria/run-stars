@@ -1,21 +1,38 @@
 use std::{fs::File, io::Write, os::{fd::AsRawFd, unix::fs::FileExt}};
+
+use memchr::memchr_iter;
+
 use crate::{Task, SPLIT_CHAR};
 
 pub fn write(mut w: impl Write, buffer: &mut Vec<u8>, tasks: &[Task]) -> Result<(), std::io::Error> {
+    macro_rules! csv { ($($f:expr),+) => { $( write!(buffer, "{}{SPLIT_CHAR}", $f)?; )+ } }
     buffer.clear();
 
-    for task in tasks.iter() {
-        // TODO: Clean this up, CSV crate is not worth it, but this is horrific
-        writeln!(buffer, "{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}{SPLIT_CHAR}{}",
-            task.status,
-            task.code,
-            task.start,
-            task.finish,
-            task.path.to_string_lossy())?;
+    for Task { status, code, start, finish, path, output } in tasks.iter() {
+        csv!(status, code, start, finish, path.display());
+
+        write_sanitized(&mut *buffer, &output)?;
+
+        buffer.write(b"\n")?;
     }
 
     w.write_all(buffer)?;
     w.flush()
+}
+
+pub fn write_sanitized(mut w: impl Write, s: &str) -> Result<(), std::io::Error> {
+    let mut b = s.as_bytes();
+    b = b.strip_suffix(b"\n").unwrap_or(b);
+
+    let mut last = 0;
+
+    for pos in memchr_iter(b'\n', b) {
+        w.write_all(&b[last..pos])?;
+        w.write_all(b"\\n")?;
+        last = pos + 1;
+    }
+
+    w.write_all(&b[last..])
 }
 
 pub enum StateFile {

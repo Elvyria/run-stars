@@ -129,6 +129,7 @@ pub struct StateChange {
     pub status: Status,
     pub code:   u8,
     pub time:   Time,
+    pub output: String,
 }
 
 pub struct Time {
@@ -163,6 +164,7 @@ pub struct Task {
     pub start:  Timestamp,
     pub finish: Timestamp,
     pub path:   PathBuf,
+    pub output: String,
 }
 
 impl Task {
@@ -173,6 +175,7 @@ impl Task {
             start:  Timestamp::now(),
             finish: Timestamp::now(),
             path:   p,
+            output: String::new(),
         }
     }
 }
@@ -314,13 +317,15 @@ fn parse(p: impl AsRef<Path>) -> Result<Vec<Task>, Error> {
         let code = parts.next().ok_or_else(malformed_err)?;
         let start = parts.next().ok_or_else(malformed_err)?;
         let finish = parts.next().ok_or_else(malformed_err)?;
+        let path = parts.next().ok_or_else(malformed_err)?;
 
         // SAFETY: memchr_iter returns values inside of a slice 
         let s_status = unsafe { l.get_unchecked(..status) };
         let s_code   = unsafe { l.get_unchecked(status + 1..code) };
         let s_start  = unsafe { l.get_unchecked(code + 1..start) };
         let s_finish = unsafe { l.get_unchecked(start + 1..finish) };
-        let s_path   = unsafe { l.get_unchecked(finish + 1..) };
+        let s_path   = unsafe { l.get_unchecked(finish + 1..path) };
+        let s_output = unsafe { l.get_unchecked(path + 1..) };
 
         let parse_err = |e: ParseError| Error::Parse {
             e,
@@ -334,8 +339,9 @@ fn parse(p: impl AsRef<Path>) -> Result<Vec<Task>, Error> {
         let start = Timestamp::from_str(s_start).map_err(|_| parse_err(ParseError::Timestamp(s_start.to_owned())))?;
         let finish = Timestamp::from_str(s_finish).map_err(|_| parse_err(ParseError::Timestamp(s_finish.to_owned())))?;
         let path = PathBuf::from_str(s_path).map_err(|_| parse_err(ParseError::Path(s_path.to_owned())))?;
+        let output = String::from_str(s_output).map_err(|_| parse_err(ParseError::Path(s_output.to_owned())))?;
 
-        v.push(Task { status, code, start, finish, path });
+        v.push(Task { status, code, start, finish, path, output });
     }
 
     Ok(v)

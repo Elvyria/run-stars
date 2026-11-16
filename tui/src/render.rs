@@ -84,7 +84,7 @@ fn render_state_list(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
 }
 
 fn table_header() -> Row<'static> {
-    ["", "Time", "Path", "Message"]
+    ["", "Start", "Finish", "Path", "Message"]
         .into_iter()
         .map(Cell::from)
         .collect::<Row>()
@@ -128,8 +128,10 @@ fn render_task_table(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
 
         let row = Row::new([
             Cell::from(status(entry)),
-            Cell::from(entry.time.as_str()),
+            Cell::from(entry.start.as_str()),
+            Cell::from(entry.finish.as_str()),
             Cell::from(entry.path.as_str()),
+            Cell::from(entry.output.as_str()),
         ]);
 
         row.fg(theme::COLOR_FOREGROUND).height(1)
@@ -147,7 +149,9 @@ fn render_task_table(f: &mut Frame, app: &mut App, area: Rect, tick: bool) {
     let t = Table::new(entries, [
         Constraint::Length(2),
         Constraint::Length(("Tue Jul 30 03:14:39 AM".len() + 1) as u16),
+        Constraint::Length(("Tue Jul 30 03:14:39 AM".len() + 1) as u16),
         Constraint::Length(50),
+        Constraint::Fill(1),
     ])
     .highlight_style(style_selected)
     .highlight_symbol(SELECTION_SYMBOL)
