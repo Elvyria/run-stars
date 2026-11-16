@@ -92,7 +92,7 @@ fn table_header() -> Row<'static> {
         .height(2)
 }
 
-fn status(entry: &TaskEntry) -> Span {
+fn status(entry: &TaskEntry) -> Span<'_> {
     use run_stars_lib::Status;
 
     match entry.status {
